@@ -1,0 +1,18 @@
+app:
+  dry_run: true
+  log_level: "INFO"
+
+exchange:
+  name: "bitget"
+  product_type: "USDT-FUTURES"
+  symbol: "ETHUSDT"
+
+risk:
+  max_notional_usdt: 50
+  leverage: 5
+
+plan:
+  side: "buy"         # buy | sell
+  entry_type: "limit" # limit | market
+  entry_price: 0.0    # if 0 -> placeholder (not fetching in this example)
+  size_usdt: 25
