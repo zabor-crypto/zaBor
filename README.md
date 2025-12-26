@@ -13,6 +13,7 @@ Default mode is **DRY_RUN**. You are responsible for:
 - `scripts/` runnable entry points (CLI)
 - `exchanges/` exchange adapters (Bitget first)
 - `strategies/` signal logic only (no exchange calls)
+- `indicators/` built-in indicators for TradigView mostly
 - `backtests/` deterministic backtest runners
 - `analytics/` portfolio/correlation/performance tools
 - `docs/` per-script documentation
