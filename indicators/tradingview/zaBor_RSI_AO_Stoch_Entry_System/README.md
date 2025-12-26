@@ -1,4 +1,4 @@
-# zaBor RSI + AO + Stochastic Entry System (TradingView)
+# RSI + AO + Stochastic Entry System (TradingView)
 
 Two-script TradingView indicator system:
 - Panel script: RSI / Stoch / AO + divergences + setups
