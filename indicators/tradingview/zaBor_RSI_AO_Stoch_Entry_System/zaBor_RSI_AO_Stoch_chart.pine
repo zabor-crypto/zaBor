@@ -1,0 +1,188 @@
+//@version=6
+indicator("zaBor RSI+AO+Stoch chart", overlay=true, max_labels_count=200)
+
+//================== SYNC INPUTS ==================
+rsiLen      = input.int(14,  "RSI Length", minval=2)
+stochKLen   = input.int(14,  "Stoch K Length", minval=2)
+stochDLen   = input.int(3,   "Stoch D Length", minval=1)
+stochSmooth = input.int(3,   "Stoch Smooth", minval=1)
+
+signalMode = input.string("Divergence+Momentum", "Entry Mode", options=["Divergence+Momentum", "Momentum Only", "Divergence Only"])
+useHiddenDiv = input.bool(true, "Enable Hidden Divergences (for trends)")
+
+pivLeft      = input.int(5,   "Pivot Left Bars", minval=1)
+pivRight     = input.int(5,   "Pivot Right Bars", minval=1)
+maxPivDist   = input.int(40,  "Max Pivot Distance", minval=5)
+validBars    = input.int(50,  "Divergence Valid Window", minval=1)
+minPriceDiff = input.float(0.6, "Min Price Divergence %", minval=0, step=0.1)
+minRsiDiff   = input.float(3.5, "Min RSI Divergence Points", minval=0, step=0.5)
+
+buyRsiMax     = input.float(35.0, "BUY: Max RSI Level", step=0.5)
+sellRsiMin    = input.float(65.0, "SELL: Min RSI Level", step=0.5)
+buyRsiRebound = input.float(50.0, "BUY: RSI Rebound to Mid", step=0.5)
+sellRsiRebound = input.float(50.0, "SELL: RSI Rebound to Mid", step=0.5)
+
+useAO = input.bool(false, "Enable AO Filter")
+aoMode = input.string("Slope", "AO Mode", options=["Slope","ZeroCross"])
+aoWindowN = input.int(20, "Zero-Cross Window (bars)", minval=1)
+
+buyKmax      = input.float(35.0, "BUY: Max Stoch K", step=0.5)
+sellKmin     = input.float(65.0, "SELL: Min Stoch K", step=0.5)
+cooldownBars = input.int(15, "Cooldown After Signal", minval=0)
+
+//================== DUPLICATE LOGIC ==================
+rsi = ta.rsi(close, rsiLen)
+ll = ta.lowest(low, stochKLen)
+hh = ta.highest(high, stochKLen)
+kRaw = (hh - ll) != 0 ? 100.0 * (close - ll) / (hh - ll) : 50.0
+k = ta.sma(kRaw, stochSmooth)
+d = ta.sma(k, stochDLen)
+ao = ta.sma(hl2, 5) - ta.sma(hl2, 34)
+
+ema20 = ta.ema(close, 20)
+ema50 = ta.ema(close, 50)
+uptrend = ema20 > ema50
+downtrend = ema20 < ema50
+
+pLowPrice  = ta.pivotlow(low, pivLeft, pivRight)
+pHighPrice = ta.pivothigh(high, pivLeft, pivRight)
+pLowRSI    = ta.pivotlow(rsi, pivLeft, pivRight)
+pHighRSI   = ta.pivothigh(rsi, pivLeft, pivRight)
+pivotCenterIndex = bar_index - pivRight
+
+var float prevLowPrice = na
+var float prevLowRSI = na
+var int prevLowIdx = na
+var float lastLowPrice = na
+var float lastLowRSI = na
+var int lastLowIdx = na
+var float prevHighPrice = na
+var float prevHighRSI = na
+var int prevHighIdx = na
+var float lastHighPrice = na
+var float lastHighRSI = na
+var int lastHighIdx = na
+
+if not na(pLowPrice) and not na(pLowRSI)
+    prevLowPrice := lastLowPrice
+    prevLowRSI   := lastLowRSI
+    prevLowIdx   := lastLowIdx
+    lastLowPrice := pLowPrice
+    lastLowRSI   := pLowRSI
+    lastLowIdx   := pivotCenterIndex
+
+if not na(pHighPrice) and not na(pHighRSI)
+    prevHighPrice := lastHighPrice
+    prevHighRSI   := lastHighRSI
+    prevHighIdx   := lastHighIdx
+    lastHighPrice := pHighPrice
+    lastHighRSI   := pHighRSI
+    lastHighIdx   := pivotCenterIndex
+
+haveLow2  = not na(prevLowPrice) and not na(lastLowIdx) and lastLowIdx > prevLowIdx
+haveHigh2 = not na(prevHighPrice) and not na(lastHighIdx) and lastHighIdx > prevHighIdx
+lowDistOk  = haveLow2 and (lastLowIdx - prevLowIdx <= maxPivDist)
+highDistOk = haveHigh2 and (lastHighIdx - prevHighIdx <= maxPivDist)
+
+priceDownPct = lowDistOk ? math.abs(lastLowPrice - prevLowPrice) / prevLowPrice * 100 : 0
+rsiUpDiff = lowDistOk ? (lastLowRSI - prevLowRSI) : 0
+priceUpPct = highDistOk ? math.abs(lastHighPrice - prevHighPrice) / prevHighPrice * 100 : 0
+rsiDownDiff = highDistOk ? (prevHighRSI - lastHighRSI) : 0
+
+bullDiv = lowDistOk and (lastLowPrice < prevLowPrice) and (lastLowRSI > prevLowRSI) and priceDownPct >= minPriceDiff and rsiUpDiff >= minRsiDiff and lastLowRSI <= buyRsiMax
+
+bearDiv = highDistOk and (lastHighPrice > prevHighPrice) and (lastHighRSI < prevHighRSI) and priceUpPct >= minPriceDiff and rsiDownDiff >= minRsiDiff and lastHighRSI >= sellRsiMin
+
+hiddenBullDiv = lowDistOk and (lastLowPrice > prevLowPrice) and (lastLowRSI < prevLowRSI) and priceDownPct >= minPriceDiff and rsiUpDiff >= minRsiDiff
+
+hiddenBearDiv = highDistOk and (lastHighPrice < prevHighPrice) and (lastHighRSI > prevHighRSI) and priceUpPct >= minPriceDiff and rsiDownDiff >= minRsiDiff
+
+rsiOversold = rsi <= buyRsiMax
+rsiOverbought = rsi >= sellRsiMin
+rsiLow20 = ta.lowest(rsi, 20)
+rsiHigh20 = ta.highest(rsi, 20)
+rsiReboundSell = rsi >= sellRsiRebound and rsiLow20 < 40
+rsiReboundBuy = rsi <= buyRsiRebound and rsiHigh20 > 60
+
+var int setupBuyStart = na
+var int setupBuyExpiry = na
+var bool aoSeenBuy = false
+var int setupSellStart = na
+var int setupSellExpiry = na
+var bool aoSeenSell = false
+var int lastBuyBar = na
+var int lastSellBar = na
+
+canBuy  = na(lastBuyBar) or (bar_index - lastBuyBar >= cooldownBars)
+canSell = na(lastSellBar) or (bar_index - lastSellBar >= cooldownBars)
+
+buyDivTrigger = bullDiv or (useHiddenDiv and hiddenBullDiv and uptrend)
+sellDivTrigger = bearDiv or (useHiddenDiv and hiddenBearDiv and downtrend)
+
+buyMomentumTrigger = rsiOversold or rsiReboundBuy
+sellMomentumTrigger = rsiOverbought or rsiReboundSell
+
+buySetupTrigger = (signalMode == "Divergence Only" and buyDivTrigger) or (signalMode == "Momentum Only" and buyMomentumTrigger) or (signalMode == "Divergence+Momentum" and (buyDivTrigger or buyMomentumTrigger))
+
+sellSetupTrigger = (signalMode == "Divergence Only" and sellDivTrigger) or (signalMode == "Momentum Only" and sellMomentumTrigger) or (signalMode == "Divergence+Momentum" and (sellDivTrigger or sellMomentumTrigger))
+
+if buySetupTrigger
+    setupBuyStart := bar_index
+    setupBuyExpiry := bar_index + validBars
+    aoSeenBuy := false
+    
+if sellSetupTrigger
+    setupSellStart := bar_index
+    setupSellExpiry := bar_index + validBars
+    aoSeenSell := false
+
+if not na(setupBuyExpiry) and bar_index > setupBuyExpiry
+    setupBuyStart := na
+    setupBuyExpiry := na
+    aoSeenBuy := false
+    
+if not na(setupSellExpiry) and bar_index > setupSellExpiry
+    setupSellStart := na
+    setupSellExpiry := na
+    aoSeenSell := false
+
+aoSlopeUp = ao > ao[1]
+aoSlopeDn = ao < ao[1]
+aoCrossUp = ta.crossover(ao, 0.0)
+aoCrossDn = ta.crossunder(ao, 0.0)
+
+if not na(setupBuyStart) and aoMode == "ZeroCross" and aoCrossUp
+    if (bar_index - setupBuyStart <= aoWindowN)
+        aoSeenBuy := true
+
+if not na(setupSellStart) and aoMode == "ZeroCross" and aoCrossDn
+    if (bar_index - setupSellStart <= aoWindowN)
+        aoSeenSell := true
+
+aoOkBuy  = not useAO or (aoMode == "Slope" ? aoSlopeUp : aoSeenBuy)
+aoOkSell = not useAO or (aoMode == "Slope" ? aoSlopeDn : aoSeenSell)
+
+stochBuyTrig  = ta.crossover(k, d) and k < buyKmax
+stochSellTrig = ta.crossunder(k, d) and k > sellKmin
+
+buySignal  = not na(setupBuyStart) and aoOkBuy and stochBuyTrig and canBuy
+sellSignal = not na(setupSellStart) and aoOkSell and stochSellTrig and canSell
+
+if buySignal
+    lastBuyBar := bar_index
+    setupBuyStart := na
+    setupBuyExpiry := na
+    aoSeenBuy := false
+
+if sellSignal
+    lastSellBar := bar_index
+    setupSellStart := na
+    setupSellExpiry := na
+    aoSeenSell := false
+
+//================== CHART VISUALIZATION ==================
+if buySignal
+    label.new(bar_index, low, "BUY", style=label.style_label_up, color=color.new(color.green, 0), textcolor=color.white, size=size.small)
+    
+if sellSignal
+    label.new(bar_index, high, "SELL", style=label.style_label_down, color=color.new(color.red, 0), textcolor=color.white, size=size.small)
