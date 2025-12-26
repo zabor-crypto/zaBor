@@ -58,6 +58,10 @@ Full manual available here:
 This indicator provides **signals**, not financial advice.  
 Always apply risk management and confirm signals with market context.
 
+## Video instruction
+Short vido instrutcrion on russian of how to apply indicator for your TV
+https://youtu.be/yqNYv-nV3w4
+
 ---
 
 ## 📜 License
