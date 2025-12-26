@@ -3,6 +3,8 @@
 Two-script TradingView indicator system:
 - Panel script: RSI / Stoch / AO + divergences + setups
 - Chart overlay script: BUY / SELL arrows
+  
+<img width="2770" height="1436" alt="BTCUSDT_2025-12-26_14-32-03" src="https://github.com/user-attachments/assets/91f6fb13-fffb-47cb-9a29-a7be8a473dd6" />
 
 ## Files
 - `pine/zaBor_RSI_AO_Stoch_indicator.pine`
@@ -20,3 +22,5 @@ Create alerts on the panel script conditions (BUY / SELL), recommended: Once Per
 
 ## License
 Covered by repository license unless specified otherwise.
+
+
