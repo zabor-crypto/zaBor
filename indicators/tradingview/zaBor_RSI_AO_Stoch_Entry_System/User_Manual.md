@@ -49,7 +49,7 @@ TradingView alerts are supported:
 ## 📄 Documentation
 
 Full manual available here:  
-[[`docs/User_Manual.md`](docs/User_Manual.md)](https://github.com/zabor-crypto/zaBor/blob/main/indicators/tradingview/zaBor_RSI_AO_Stoch_Entry_System/User_Manual.md#:~:text=User_Manual.md)
+[indicators/tradingview/zaBor_RSI_AO_Stoch_Entry_System/User_Manual.md]
 
 ---
 
