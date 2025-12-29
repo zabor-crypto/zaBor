@@ -188,12 +188,33 @@ aoOkBuy  = not useAO or (aoMode == "Slope" ? aoSlopeUp : aoSeenBuy)
 aoOkSell = not useAO or (aoMode == "Slope" ? aoSlopeDn : aoSeenSell)
 
 //================== STOCH TRIGGERS ==================
-stochBuyTrig  = ta.crossover(k, d) and k < buyKmax
-stochSellTrig = ta.crossunder(k, d) and k > sellKmin
+// v20: Added direction confirmation (k rising/falling after crossover)
+stochBuyTrig  = ta.crossover(k, d) and k < buyKmax and k > k[1]
+stochSellTrig = ta.crossunder(k, d) and k > sellKmin and k < k[1]
+
+//================== v20 REVERSAL CONFIRMATION FILTERS ==================
+// Filter #1: RSI Momentum Confirmation (moderate - allows 1-2 bar hesitation)
+rsiConfirmBuy  = rsi > rsi[1] or rsi > rsi[2]
+rsiConfirmSell = rsi < rsi[1] or rsi < rsi[2]
+
+// Filter #2: Price Action Confirmation (for momentum-only signals)
+// Ensures bullish/bearish candle structure when no divergence present
+priceConfirmBuy  = close > open or low > low[1]
+priceConfirmSell = close < open or high < high[1]
+
+// Filter #3: Determine if signal is divergence-based or momentum-only
+isDivergenceBuy  = buyDivTrigger and not na(setupBuyStart)
+isDivergenceSell = sellDivTrigger and not na(setupSellStart)
+isMomentumOnlyBuy  = not isDivergenceBuy and buyMomentumTrigger and not na(setupBuyStart)
+isMomentumOnlySell = not isDivergenceSell and sellMomentumTrigger and not na(setupSellStart)
+
+// Apply confirmations based on signal type
+confirmBuy  = isDivergenceBuy ? rsiConfirmBuy : (isMomentumOnlyBuy ? (rsiConfirmBuy and priceConfirmBuy) : rsiConfirmBuy)
+confirmSell = isDivergenceSell ? rsiConfirmSell : (isMomentumOnlySell ? (rsiConfirmSell and priceConfirmSell) : rsiConfirmSell)
 
 //================== FINAL SIGNALS ==================
-buySignal  = not na(setupBuyStart) and aoOkBuy and stochBuyTrig and canBuy
-sellSignal = not na(setupSellStart) and aoOkSell and stochSellTrig and canSell
+buySignal  = not na(setupBuyStart) and aoOkBuy and stochBuyTrig and canBuy and confirmBuy
+sellSignal = not na(setupSellStart) and aoOkSell and stochSellTrig and canSell and confirmSell
 
 if buySignal
     lastBuyBar := bar_index
