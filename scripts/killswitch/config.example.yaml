@@ -1,0 +1,162 @@
+# ==============================================================================
+# CRYPTO KILL-SWITCH CONFIGURATION
+# ==============================================================================
+# This file controls how the kill-switch monitors and reacts to market drops.
+#
+# SECTIONS:
+# 1. Global Settings: Polling interval, Dry-Run mode.
+# 2. Exchanges: API keys and account-specific rules.
+#
+# IMPORTANT:
+# - All time windows are in MINUTES (e.g., "15" = 15 minutes).
+# - All thresholds are DECIMAL (e.g., 0.05 = 5%).
+# - "dry_run: true" means NO ORDERS will be sent. Set to "false" for real trading.
+# ==============================================================================
+
+# GLOBAL SETTINGS
+# ------------------------------------------------------------------------------
+poll_seconds: 60                 # How often to check prices (in seconds). Default: 60
+state_db: "./killswitch.sqlite"  # Database file to store history. Don't delete this while running.
+dry_run: true                    # TRUE = Test Mode (Log only). FALSE = Real Action (Danger!)
+stables_keep: ["USDT", "USDC", "DAI", "FDUSD"]  # Assets to NEVER sell in Spot mode.
+
+# EXCHANGES
+# ------------------------------------------------------------------------------
+exchanges:
+  
+  # --- BINANCE ---
+  binance:
+    enabled: false
+    # CREDENTIALS
+    # You can use direct strings OR environment variables (recommended).
+    # To use env vars, prefix with $: "$BINANCE_API_KEY"
+    api_key_env: "BINANCE_API_KEY"
+    api_secret_env: "BINANCE_API_SECRET"
+    
+    accounts:
+      # FUTURES SETTINGS
+      futures:
+        enabled: false
+        # Time windows to monitor. Supports minutes (15) or suffixes ("15m", "1h").
+        windows: [15, 60, "15m", "1h"] 
+        
+        # TIER A: Early Warning (e.g., fast drop)
+        tier_a:
+          thresholds: 
+            "15": 0.045   # Trigger if drops 4.5% in 15 minutes
+            "60": 0.070   # OR drops 7.0% in 60 minutes
+          confirm_consecutive: 3   # Wait for 3 consecutive polls (3 mins) to confirm
+          mode: "CLOSE_LONGS_ONLY" # Action: Only close LONG positions. Keep SHORTS open.
+          cooldown_min: 90         # Wait 90 mins before checking again after trigger
+          
+        # TIER B: Crash Protection (e.g., large sustained drop)
+        tier_b:
+          thresholds: 
+            "15m": 0.070  # Trigger if drops 7.0% in 15 minutes
+            "60": 0.120   # OR drops 12.0% in 1 hour
+          confirm_consecutive: 3   # Wait for 3 consecutive polls
+          mode: "CLOSE_ALL_POSITIONS" # Action: Close EVERYTHING (Longs + Shorts)
+          cooldown_min: 360        # Long cool-down (6 hours)
+      
+      # SPOT SETTINGS
+      spot:
+        enabled: false
+        windows: [60]
+        tier_a:
+          thresholds: { "60": 0.12 } # 12% drop in 1 hour
+          mode: "SELL_BLACKLIST_ONLY_KEEP_STABLES"
+          blacklist: ["DOGE", "SHIB", "PEPE"] # Only sell these risky coins
+          cooldown_min: 120
+        tier_b:
+          thresholds: { "60": 0.20 } # 20% drop in 1 hour
+          mode: "SELL_ALL_NON_USDT_KEEP_STABLES" # SELL EVERYTHING (except USDT/USDC/etc)
+          cooldown_min: 480
+
+  # --- BYBIT ---
+  bybit:
+    enabled: false
+    api_key_env: "BYBIT_API_KEY"
+    api_secret_env: "BYBIT_API_SECRET"
+    
+    accounts:
+      # FUTURES SETTINGS
+      futures:
+        enabled: false
+        windows: [15, 60, "15m", "1h"]
+        
+        # TIER A: Early Warning
+        tier_a:
+          thresholds: 
+            "15": 0.045   # Trigger if drops 4.5% in 15 minutes
+            "60": 0.070   # OR drops 7.0% in 60 minutes
+          confirm_consecutive: 3
+          mode: "CLOSE_LONGS_ONLY"
+          cooldown_min: 90
+          
+        # TIER B: Crash Protection
+        tier_b:
+          thresholds: 
+            "15m": 0.070  # Trigger if drops 7.0% in 15 minutes
+            "60": 0.120   # OR drops 12.0% in 1 hour
+          confirm_consecutive: 3
+          mode: "CLOSE_ALL_POSITIONS"
+          cooldown_min: 360
+      
+      # SPOT SETTINGS
+      spot:
+        enabled: false
+        windows: [60]
+        tier_a:
+          thresholds: { "60": 0.12 } # 12% drop in 1 hour
+          mode: "SELL_BLACKLIST_ONLY_KEEP_STABLES"
+          blacklist: ["SWELL"]
+          cooldown_min: 120
+        tier_b:
+          thresholds: { "60": 0.20 } # 20% drop in 1 hour
+          mode: "SELL_ALL_NON_USDT_KEEP_STABLES"
+          cooldown_min: 480
+
+  # --- BITGET ---
+  bitget:
+    enabled: false
+    api_key_env: "BITGET_API_KEY"
+    api_secret_env: "BITGET_API_SECRET"
+    password_env: "BITGET_PASSWORD" # Bitget requires a password/passphrase
+    
+    accounts:
+      # FUTURES SETTINGS
+      futures:
+        enabled: false
+        windows: [15, 60, "15m", "1h"]
+        
+        # TIER A: Early Warning
+        tier_a:
+          thresholds: 
+            "15": 0.045   # Trigger if drops 4.5% in 15 minutes
+            "60": 0.070   # OR drops 7.0% in 60 minutes
+          confirm_consecutive: 3
+          mode: "CLOSE_LONGS_ONLY"
+          cooldown_min: 90
+          
+        # TIER B: Crash Protection
+        tier_b:
+          thresholds: 
+            "15m": 0.070  # Trigger if drops 7.0% in 15 minutes
+            "60": 0.120   # OR drops 12.0% in 1 hour
+          confirm_consecutive: 3
+          mode: "CLOSE_ALL_POSITIONS"
+          cooldown_min: 360
+      
+      # SPOT SETTINGS
+      spot:
+        enabled: false
+        windows: [60]
+        tier_a:
+          thresholds: { "60": 0.12 } # 12% drop in 1 hour
+          mode: "SELL_BLACKLIST_ONLY_KEEP_STABLES"
+          blacklist: ["AI", "DODO"]
+          cooldown_min: 120
+        tier_b:
+          thresholds: { "60": 0.20 } # 20% drop in 1 hour
+          mode: "SELL_ALL_NON_USDT_KEEP_STABLES"
+          cooldown_min: 480
