@@ -1,5 +1,41 @@
+# Python
 .venv/
-.pytest_cache/
+__pycache__/
 **/__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Secrets and environment
 .env
+.env.*
+!.env.example
+*.env
+killswitch.env
+
+# Runtime state
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.log
+logs/
+
+# IDE
 .vscode/
+.idea/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Reports and local test artifacts
+reports/*.json
+reports/*.log
+reports/*.sqlite*
