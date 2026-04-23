@@ -25,6 +25,7 @@ Default mode is **`dry_run: true`**. You are responsible for:
 
 | Path | Description |
 |------|-------------|
+| [`scripts/alt_4h_scanner/`](scripts/alt_4h_scanner/) | Binance spot scanner — accumulation breakout detection on 4H, structured pullback entry signals with Telegram delivery (PF 11.8, WR 95.7% backtest) |
 | [`scripts/killswitch/`](scripts/killswitch/) | Automated emergency risk shutdown — monitors equity drawdown across Binance/Bybit/Bitget and flattens positions on threshold breach |
 | [`scripts/lighter_mm/`](scripts/lighter_mm/) | Market-making strategy simulator for Lighter.xyz DEX — spread quoting, inventory skew, toxicity filter, walk-forward optimization |
 | [`exchanges/bitget/`](exchanges/bitget/) | Typed Bitget REST client adapter (order lifecycle, credentials, retries) |
