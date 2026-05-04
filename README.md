@@ -32,6 +32,12 @@ Default mode is **`dry_run: true`**. You are responsible for:
 | [`indicators/tradingview/`](indicators/tradingview/) | Pine Script indicators for TradingView signal prototyping |
 | [`configs/`](configs/) | YAML config templates |
 
+### Standalone research tools
+
+| Repository | Description |
+|------------|-------------|
+| [funding-arb-research](https://github.com/zabor-crypto/funding-arb-research) | Multi-venue delta-neutral funding rate arbitrage research stack — async collectors for Binance/Bybit/OKX/HL/Bitget/GMX v2, strategy-agnostic backtest engine, 8 strategies tested. Honest result: all REJECT at current fee levels. |
+
 ---
 
 ## Quickstart
