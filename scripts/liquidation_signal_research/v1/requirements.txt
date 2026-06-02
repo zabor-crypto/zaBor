@@ -1,0 +1,4 @@
+websockets>=12.0,<16.0
+zstandard>=0.22.0,<1.0.0
+aiohttp>=3.9,<4.0
+aiohttp-socks>=0.8,<1.0
