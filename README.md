@@ -33,6 +33,12 @@ Default mode is **`dry_run: true`**. You are responsible for:
 | [`indicators/tradingview/`](indicators/tradingview/) | Pine Script indicators for TradingView signal prototyping |
 | [`configs/`](configs/) | YAML config templates |
 
+### Standalone research repos
+
+| Repository | Description |
+|------------|-------------|
+| [liquidation-signal-research](https://github.com/zabor-crypto/liquidation-signal-research) | Binance liquidation cascade signal — event-sourced paper-trading pipeline, microstructure features, 22K paper trade validation. Research in progress. |
+
 ---
 
 ## Quickstart
