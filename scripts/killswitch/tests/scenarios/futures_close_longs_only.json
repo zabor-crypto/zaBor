@@ -1,0 +1,24 @@
+{
+  "name": "futures_close_longs_only",
+  "description": "One-way mode: close longs, keep shorts",
+  "mode": "futures",
+  "exchange": "bybit",
+  "position_mode": "one-way",
+  "positions": [
+    {
+      "symbol": "BTC/USDT:USDT",
+      "side": "long",
+      "contracts": 0.1
+    },
+    {
+      "symbol": "ETH/USDT:USDT",
+      "side": "short",
+      "contracts": 1.5
+    }
+  ],
+  "action": "CLOSE_LONGS_ONLY",
+  "expected_orders": 1,
+  "expected_closed": [
+    "BTC/USDT:USDT long"
+  ]
+}

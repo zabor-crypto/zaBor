@@ -1,0 +1,29 @@
+{
+  "name": "startup_insufficient_samples",
+  "description": "Not enough data to calculate DD (should not trigger)",
+  "timeline": [
+    1706000000,
+    1706000060,
+    1706000120
+  ],
+  "equity_series": [
+    10022.345044529926,
+    10033.705817012811,
+    10183.028967435632
+  ],
+  "quality_series": [
+    true,
+    true,
+    true
+  ],
+  "config": {
+    "start_equity": 10000,
+    "pattern": "step_down",
+    "drop_pct": 0.1,
+    "minutes": 3
+  },
+  "expected_outcome": {
+    "tier_triggered": null,
+    "reason": "insufficient_samples"
+  }
+}

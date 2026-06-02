@@ -1,0 +1,36 @@
+# Fee schedule in basis points (1 bp = 0.01%).
+# Maker/taker assumed for entry/exit; configure conservative slippage.
+
+bitget:
+  maker_bps: 2.0
+  taker_bps: 6.0
+  default_role: "taker"
+
+binance:
+  maker_bps: 2.0
+  taker_bps: 5.0
+  default_role: "taker"
+
+bybit:
+  maker_bps: 2.0
+  taker_bps: 5.0
+  default_role: "taker"
+
+okx:
+  maker_bps: 2.0
+  taker_bps: 5.0
+  default_role: "taker"
+
+hyperliquid:
+  maker_bps: 1.0
+  taker_bps: 3.5
+  default_role: "taker"
+
+gmx:
+  open_close_bps: 7.0
+  swap_bps: 5.0
+
+slippage:
+  min_slippage_bps: 1.0
+  k: 0.50           # multiplier on sqrt(notional / depth_notional)
+  fallback_bps: 5.0 # used when book depth unavailable

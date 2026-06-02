@@ -1,0 +1,27 @@
+{
+  "name": "futures_close_all_positions",
+  "description": "Close all positions (longs + shorts)",
+  "mode": "futures",
+  "exchange": "binance",
+  "position_mode": "one-way",
+  "positions": [
+    {
+      "symbol": "BTC/USDT:USDT",
+      "side": "long",
+      "contracts": 0.05
+    },
+    {
+      "symbol": "ETH/USDT:USDT",
+      "side": "short",
+      "contracts": 1.0
+    },
+    {
+      "symbol": "SOL/USDT:USDT",
+      "side": "long",
+      "contracts": 5.0
+    }
+  ],
+  "action": "CLOSE_ALL_POSITIONS",
+  "expected_orders": 3,
+  "expected_closed": "all"
+}

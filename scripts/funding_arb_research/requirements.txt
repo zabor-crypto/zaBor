@@ -1,0 +1,18 @@
+# Versions are pinned exactly so parquet/CSV outputs are byte-identical
+# across runs on the same Python version. Bump deliberately.
+aiohttp==3.9.5
+httpx==0.27.0
+pandas==2.2.2
+numpy==1.26.4
+pyarrow==15.0.2
+pyyaml==6.0.1
+python-dateutil==2.9.0.post0
+tenacity==8.3.0
+matplotlib==3.8.4
+statsmodels==0.14.2
+scipy==1.13.0
+tqdm==4.66.4
+pydantic==2.7.1
+orjson==3.10.3
+web3==6.17.2
+eth-abi==5.1.0

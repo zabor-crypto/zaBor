@@ -1,0 +1,58 @@
+global:
+  base_currency: "USD"
+  capital_usd: 1_000_000
+  per_trade_capital_pct: 0.10
+  max_strategy_dd: 0.15
+  liquidation_buffer_min: 0.30   # Minimum free margin / used margin ratio
+  data_staleness_seconds: 600
+
+hl_binance_interval:
+  universe: ["BTC", "ETH", "SOL"]
+  # Widened thresholds for fix-or-kill v3: positions must survive at least
+  # one Binance 8h funding settlement, otherwise we never realize funding.
+  entry_threshold_apr: 0.30
+  exit_threshold_apr: 0.10
+  sign_flip_grace_minutes: 120
+  use_predicted_funding: true
+  fallback_to_realized: true
+  funding_lookback_hours: 168
+  rebalance_minutes: 60
+  # Per-strategy override: Binance funds every 8h, so the price proxy used
+  # for the HL leg is up to 8h stale by design. Tolerate that.
+  data_staleness_seconds: 32400  # 9h
+  # Maker-only execution: round-trip fees are ~6bp (HL 1+1 + Binance 2+2)
+  # vs ~17bp at taker. Funding-spread arb only survives at maker rates.
+  role: "maker"
+
+cross_cex_persistence:
+  venues: ["binance", "bybit", "okx"]
+  universe: ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "AVAX", "LINK", "ARB", "OP", "SUI"]
+  z_entry: 2.0
+  z_exit: 0.5
+  ar_min: 0.90
+  min_net_apr: 0.08
+  rolling_window_hours: 168
+  vol_doubling_factor: 2.0
+
+hl_cross_venue_disp:
+  # Trade widest cross-venue funding spread across HL/Binance/Bybit/OKX.
+  # Universe matches what we have funding history for.
+  universe: ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "AVAX", "LINK", "ARB", "OP", "SUI"]
+  entry_threshold_apr: 0.30
+  exit_threshold_apr: 0.05
+  rebalance_minutes: 60
+  data_staleness_seconds: 32400  # 9h (price proxy stale window)
+  role: "maker"
+
+gmx_imbalance:
+  # Widened universe: include the high-APR small-cap markets we saw in the
+  # first feasibility run. They were flagged INSUFFICIENT_LIQUIDITY at the
+  # default $5M pool floor, but are worth re-checking at a 30d horizon and
+  # a relaxed liquidity threshold for capital-light sizing.
+  universe: ["BTC", "ETH", "SOL", "ARB", "LINK", "WBTC", "WETH", "AVAX", "DOGE", "UNI"]
+  hedge_venue: "binance"
+  min_pool_liquidity_usd: 1_000_000        # was 5e6
+  net_apr_threshold: 0.10
+  max_round_trip_pct_of_carry: 0.20
+  carry_horizon_days: 30                    # was 7 — round-trip cost amortizes over a month
+  price_impact_bps_default: 8

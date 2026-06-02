@@ -1,0 +1,68 @@
+# Venue configuration. Endpoints are taken from the live API documentation
+# of each exchange/protocol at the time of authoring; they are loaded at
+# runtime so they can be patched without code changes.
+
+binance:
+  enabled: true
+  rest_base: "https://fapi.binance.com"
+  endpoints:
+    funding_history: "/fapi/v1/fundingRate"
+    premium_index: "/fapi/v1/premiumIndex"
+    klines: "/fapi/v1/klines"
+    exchange_info: "/fapi/v1/exchangeInfo"
+    book_ticker: "/fapi/v1/ticker/bookTicker"
+    open_interest: "/fapi/v1/openInterest"
+  funding_interval_hours: 8
+  symbol_format: "{base}{quote}"  # BTCUSDT
+  default_quote: "USDT"
+  rate_limit_rps: 10
+
+bybit:
+  enabled: true
+  rest_base: "https://api.bybit.com"
+  endpoints:
+    funding_history: "/v5/market/funding/history"
+    tickers: "/v5/market/tickers"
+    klines: "/v5/market/kline"
+    instruments_info: "/v5/market/instruments-info"
+  funding_interval_hours: 8
+  symbol_format: "{base}{quote}"  # BTCUSDT
+  category: "linear"
+  default_quote: "USDT"
+  rate_limit_rps: 10
+
+okx:
+  enabled: true
+  rest_base: "https://www.okx.com"
+  endpoints:
+    funding_history: "/api/v5/public/funding-rate-history"
+    funding_current: "/api/v5/public/funding-rate"
+    instruments: "/api/v5/public/instruments"
+    mark_price: "/api/v5/public/mark-price"
+    tickers: "/api/v5/market/tickers"
+  funding_interval_hours: 8
+  symbol_format: "{base}-{quote}-SWAP"  # BTC-USDT-SWAP
+  inst_type: "SWAP"
+  default_quote: "USDT"
+  rate_limit_rps: 10
+
+hyperliquid:
+  enabled: true
+  rest_base: "https://api.hyperliquid.xyz"
+  endpoints:
+    info: "/info"
+  funding_interval_hours: 1     # Hyperliquid funds hourly
+  symbol_format: "{base}"       # BTC, ETH, SOL on perp universe
+  default_quote: "USD"
+  rate_limit_rps: 5
+
+gmx_v2:
+  enabled: true
+  # GMX v2 lives on Arbitrum and Avalanche. We default to Arbitrum.
+  chain: "arbitrum"
+  rpc_url_env: "ARBITRUM_RPC_URL"
+  subgraph_url: "https://subgraph.satsuma-prod.com/3b2ced13c8d9/gmx/synthetics-arbitrum-stats/api"
+  reader_address: ""        # Optional: overridden via environment
+  data_store_address: ""    # Optional: overridden via environment
+  funding_interval_hours: 1 # GMX v2 accrues continuously; we sample hourly
+  rate_limit_rps: 2

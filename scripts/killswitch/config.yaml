@@ -1,0 +1,149 @@
+# ==============================================================================
+# CRYPTO KILL-SWITCH CONFIGURATION v3.0
+# ==============================================================================
+#
+# MIGRATION NOTE (from tier_a/tier_b):
+#   Old:  tier_a (CLOSE_LONGS_ONLY) + tier_b (CLOSE_ALL_POSITIONS)
+#   New:  stage_1 (CLOSE_TOP_RISK_CONTRIBUTORS) +
+#         stage_2 (CLOSE_DOMINANT_LOSS_DIRECTION) +
+#         stage_3 (CLOSE_ALL_POSITIONS)
+#
+#   Backward compat: tier_a is auto-mapped to stage_1; tier_b to stage_3.
+#   A warning is printed if CLOSE_LONGS_ONLY is detected.
+#
+# SAFETY RULES:
+#   - Set dry_run: true until you have verified dry-run logs.
+#   - Stages escalate upward only; stage 3 lock requires manual removal.
+#   - External bots should check killswitch_trading_lock.json before trading.
+# ==============================================================================
+
+# GLOBAL
+poll_seconds: 60
+state_db: "./killswitch.sqlite"
+dry_run: true
+stables_keep: ["USDT", "USDC", "DAI", "FDUSD"]
+trading_lock_file: "./killswitch_trading_lock.json"
+
+# SPOT ROUTING SAFETY
+# sell_intermediate_delta_only: true (default, safe)
+#   Only sell the BTC/ETH acquired from hop-1; never sell pre-existing holdings.
+# allow_liquidate_preexisting_intermediate: false (default)
+#   Set to true ONLY if you intentionally want to liquidate all BTC/ETH holdings.
+spot_routing:
+  sell_intermediate_delta_only: true
+  allow_liquidate_preexisting_intermediate: false
+
+# SHARED FUTURES STAGE CONFIG (YAML anchor)
+_futures_stages: &futures_stages
+  enabled: true
+  account_mode: "directional_futures"
+  windows: ["15m", "1h"]
+
+  stage_1:
+    # Surgical Stage 1: close top-N risk contributors on the losing side only.
+    # Attribution uses PnL delta over the trigger window — not just current PnL.
+    thresholds:
+      "15m": 0.045   # 4.5% drop in 15 minutes
+      "1h":  0.070   # 7.0% drop in 1 hour
+    confirm_consecutive: 3      # 3 consecutive breaches required
+    mode: "CLOSE_TOP_RISK_CONTRIBUTORS"
+    source_mode: "AUTO"         # AUTO = use attribution result
+    source_threshold: 0.65      # 65% of negative delta on one side = dominant
+    top_n: 3                    # Close top 3 by risk score
+    close_fraction: 0.50        # Close 50% of each position
+    full_close_if_liq_distance_below_pct: 0.03   # Full close if <3% from liq
+    cancel_entry_orders_before_close: true
+    set_trading_lock: true
+    cooldown_min: 30
+
+  stage_2:
+    # Directional purge: close all positions on the dominant losing side.
+    thresholds:
+      "15m": 0.070
+      "1h":  0.100
+    confirm_consecutive: 2
+    mode: "CLOSE_DOMINANT_LOSS_DIRECTION"
+    source_mode: "AUTO"
+    source_threshold: 0.60
+    cancel_entry_orders_before_close: true
+    set_trading_lock: true
+    cooldown_min: 90
+
+  stage_3:
+    # Global futures kill: cancel all entry orders, close all positions,
+    # then cancel orphan reduce-only orders.
+    thresholds:
+      "15m": 0.100
+      "1h":  0.140
+    confirm_consecutive: 1
+    mode: "CLOSE_ALL_POSITIONS"
+    cancel_entry_orders_before_close: true
+    set_trading_lock: true
+    cooldown_min: 360
+
+# EXCHANGES
+exchanges:
+
+  # --- BINANCE ---
+  binance:
+    enabled: true
+    api_key_env: "BINANCE_API_KEY"
+    api_secret_env: "BINANCE_API_SECRET"
+    accounts:
+      futures:
+        <<: *futures_stages
+      spot:
+        enabled: true
+        windows: ["1h"]
+        tier_a:
+          thresholds: { "1h": 0.12 }
+          mode: "SELL_BLACKLIST_ONLY_KEEP_STABLES"
+          blacklist: ["DOGE", "SHIB", "PEPE"]
+          cooldown_min: 120
+        tier_b:
+          thresholds: { "1h": 0.20 }
+          mode: "SELL_ALL_NON_USDT_KEEP_STABLES"
+          cooldown_min: 480
+
+  # --- BYBIT ---
+  bybit:
+    enabled: true
+    api_key_env: "BYBIT_API_KEY"
+    api_secret_env: "BYBIT_API_SECRET"
+    accounts:
+      futures:
+        <<: *futures_stages
+      spot:
+        enabled: true
+        windows: ["1h"]
+        tier_a:
+          thresholds: { "1h": 0.12 }
+          mode: "SELL_BLACKLIST_ONLY_KEEP_STABLES"
+          blacklist: ["DOGE", "SHIB"]
+          cooldown_min: 120
+        tier_b:
+          thresholds: { "1h": 0.20 }
+          mode: "SELL_ALL_NON_USDT_KEEP_STABLES"
+          cooldown_min: 480
+
+  # --- BITGET ---
+  bitget:
+    enabled: true
+    api_key_env: "BITGET_API_KEY"
+    api_secret_env: "BITGET_API_SECRET"
+    password_env: "BITGET_PASSWORD"
+    accounts:
+      futures:
+        <<: *futures_stages
+      spot:
+        enabled: true
+        windows: ["1h"]
+        tier_a:
+          thresholds: { "1h": 0.12 }
+          mode: "SELL_BLACKLIST_ONLY_KEEP_STABLES"
+          blacklist: ["DOGE", "SHIB"]
+          cooldown_min: 120
+        tier_b:
+          thresholds: { "1h": 0.20 }
+          mode: "SELL_ALL_NON_USDT_KEEP_STABLES"
+          cooldown_min: 480

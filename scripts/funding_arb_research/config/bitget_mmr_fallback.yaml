@@ -1,0 +1,25 @@
+# Bitget MMR fallback tier table.
+#
+# Used by src/margin/bitget_mmr.py ONLY when /api/v2/mix/market/query-position-lever
+# returns an empty tier list for a symbol (extremely rare in practice — verified
+# 2026-04-27 that all 543 active USDT-FUTURES symbols had populated tiers).
+#
+# Values are deliberately conservative: they overstate MMR vs the API-published
+# values for typical mid-cap coins, so any backtest using the fallback will be
+# pessimistic on liquidation buffer rather than optimistic. Sources cross-checked
+# against Bitget's public risk-limit documentation for newly-listed USDT-margined
+# perpetuals (the lowest-liquidity tier set Bitget publishes).
+#
+# Format:
+#   tiers: list of {start_unit, end_unit, max_leverage, mmr}
+#     start_unit/end_unit  — position notional in USDT
+#     max_leverage         — Bitget's tier-leverage cap
+#     mmr                  — maintenance-margin rate as a decimal (0.01 = 1%)
+
+generic_altcoin:
+  tiers:
+    - {level: 1, start_unit: 0,        end_unit: 5000,     max_leverage: 50, mmr: 0.010}
+    - {level: 2, start_unit: 5000,     end_unit: 50000,    max_leverage: 30, mmr: 0.025}
+    - {level: 3, start_unit: 50000,    end_unit: 250000,   max_leverage: 10, mmr: 0.050}
+    - {level: 4, start_unit: 250000,   end_unit: 1000000,  max_leverage: 5,  mmr: 0.100}
+    - {level: 5, start_unit: 1000000,  end_unit: 100000000, max_leverage: 2, mmr: 0.250}

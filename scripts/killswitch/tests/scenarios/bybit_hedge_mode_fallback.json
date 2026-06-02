@@ -1,0 +1,24 @@
+{
+  "name": "bybit_hedge_mode_fallback",
+  "description": "Bybit hedge mode requires positionIdx",
+  "mode": "futures",
+  "exchange": "bybit",
+  "position_mode": "hedge",
+  "positions": [
+    {
+      "symbol": "BTC/USDT:USDT",
+      "side": "long",
+      "contracts": 0.1,
+      "positionIdx": 1
+    },
+    {
+      "symbol": "BTC/USDT:USDT",
+      "side": "short",
+      "contracts": 0.05,
+      "positionIdx": 2
+    }
+  ],
+  "action": "CLOSE_LONGS_ONLY",
+  "expected_orders": 1,
+  "requires_position_idx": true
+}
