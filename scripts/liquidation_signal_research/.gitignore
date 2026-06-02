@@ -1,0 +1,36 @@
+# Environment and secrets
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Runtime data
+v1_data/
+logs/
+*.log
+*.jsonl
+*.jsonl.zst
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+.claude/
+AGENTS.md
