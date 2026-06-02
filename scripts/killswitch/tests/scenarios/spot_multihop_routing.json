@@ -1,0 +1,19 @@
+{
+  "name": "spot_multihop_routing",
+  "description": "ALT with no direct USDT pair uses BTC routing",
+  "mode": "spot",
+  "balances": {
+    "USDT": 1000,
+    "SHIB": 1000000
+  },
+  "pairs_available": [
+    "SHIB/BTC",
+    "BTC/USDT"
+  ],
+  "stables_keep": [
+    "USDT"
+  ],
+  "action": "SELL_ALL_NON_USDT_KEEP_STABLES",
+  "expected_orders": 2,
+  "expected_routing": "SHIB->BTC->USDT"
+}

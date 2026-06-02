@@ -26,18 +26,12 @@ Default mode is **`dry_run: true`**. You are responsible for:
 | Path | Description |
 |------|-------------|
 | [`scripts/alt_4h_scanner/`](scripts/alt_4h_scanner/) | Binance spot scanner — accumulation breakout detection on 4H, structured pullback entry signals with Telegram delivery (PF 11.8, WR 95.7% backtest) |
-| [`scripts/killswitch/`](scripts/killswitch/) | Automated emergency risk shutdown — monitors equity drawdown across Binance/Bybit/Bitget and flattens positions on threshold breach |
+| [`scripts/killswitch/`](scripts/killswitch/) | Emergency risk management system v6.0 — PnL attribution engine, staged closure (surgical → directional → full stop), Binance/Bybit/Bitget, 94+ tests |
+| [`scripts/funding_arb_research/`](scripts/funding_arb_research/) | Funding rate arbitrage research stack — async collectors for Binance/Bybit/OKX/HL/Bitget/GMX v2, strategy-agnostic backtest engine, 8 strategies tested. Honest result: all REJECT at current fee levels |
 | [`scripts/lighter_mm/`](scripts/lighter_mm/) | Market-making strategy simulator for Lighter.xyz DEX — spread quoting, inventory skew, toxicity filter, walk-forward optimization |
 | [`exchanges/bitget/`](exchanges/bitget/) | Typed Bitget REST client adapter (order lifecycle, credentials, retries) |
 | [`indicators/tradingview/`](indicators/tradingview/) | Pine Script indicators for TradingView signal prototyping |
 | [`configs/`](configs/) | YAML config templates |
-
-### Standalone research tools
-
-| Repository | Description |
-|------------|-------------|
-| [funding-arb-research](https://github.com/zabor-crypto/funding-arb-research) | Multi-venue delta-neutral funding rate arbitrage research stack — async collectors for Binance/Bybit/OKX/HL/Bitget/GMX v2, strategy-agnostic backtest engine, 8 strategies tested. Honest result: all REJECT at current fee levels. |
-| [killswitch-crypto](https://github.com/zabor-crypto/killswitch-crypto) | Multi-exchange emergency kill-switch with PnL attribution and staged risk management — identifies which side caused the loss, closes surgically. Binance, Bybit, Bitget. 94+ tests. |
 
 ---
 
@@ -56,23 +50,40 @@ pip install -e ".[dev]"
 
 ## Scripts
 
-### Kill-Switch (`scripts/killswitch/`)
+### Kill-Switch v6.0 (`scripts/killswitch/`)
 
-Monitors equity drawdown across multiple exchanges (Futures + Spot). On threshold breach executes configurable protective actions:
+Stage-based emergency risk management system. Instead of blindly closing all positions on drawdown, v6.0 identifies which side caused the loss (longs vs shorts), ranks positions by a composite risk score, and closes surgically — escalating only if the situation worsens.
 
-- **Tier A** — conservative: close longs only, cooldown 60 min
-- **Tier B** — aggressive: flatten all positions, sell non-stable spot
-
-Exchanges: Binance, Bybit, Bitget · SQLite state DB · Structured JSON logging
+**Stages:** 1 → close top-N risk contributors · 2 → close dominant losing direction · 3 → full stop (manual reset required)  
+**Exchanges:** Binance, Bybit, Bitget · Futures + Spot · SQLite state · 94+ tests
 
 ```bash
 cd scripts/killswitch
-cp config.example.yaml config.yaml
-# set API keys via environment variables
-python3 src/killswitch.py --config config.yaml   # dry_run: true by default
+cp .env.example .env  # fill in API keys
+python3 killswitch.py --test-mock
+python3 -m pytest tests/ -v
+python3 killswitch.py --config config.yaml   # dry_run: true by default
 ```
 
 → See [`scripts/killswitch/README.md`](scripts/killswitch/README.md)
+
+---
+
+### Funding Rate Arbitrage Research (`scripts/funding_arb_research/`)
+
+Multi-venue funding rate arbitrage research stack. Async data collectors for 6 venues (Binance, Bybit, OKX, Hyperliquid, Bitget, GMX v2), strategy-agnostic backtest engine, 8 strategies tested across multiple hypotheses.
+
+**Honest result:** all strategies REJECT at current fee levels. Research infra is reusable for further hypotheses.
+
+```bash
+cd scripts/funding_arb_research
+pip install -r requirements.txt
+cp .env.example .env
+python3 main_collect.py      # start data collection
+python3 main_backtest.py     # run backtest
+```
+
+→ See [`scripts/funding_arb_research/README.md`](scripts/funding_arb_research/README.md)
 
 ---
 

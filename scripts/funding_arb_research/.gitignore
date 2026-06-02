@@ -1,0 +1,30 @@
+# Python
+.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+dist/
+build/
+*.egg-info/
+
+# Collected data panels (large, collect locally with main_collect.py)
+data/raw/
+data/normalized/
+data/cache/
+data/recorder*/
+data/*.log
+
+# Backtest run artifacts (reproducible, not tracked)
+outputs/runs/
+outputs/logs/
+
+# Secrets
+.env
+*.env
+!.env.example
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store

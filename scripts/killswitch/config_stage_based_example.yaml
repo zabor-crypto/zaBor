@@ -1,0 +1,113 @@
+# Example target config for the new attribution-based kill-switch.
+# This is a template for the coding agent; do not deploy blindly without dry-run.
+
+poll_seconds: 60
+state_db: "./killswitch.sqlite"
+dry_run: true
+stables_keep: ["USDT", "USDC", "DAI", "FDUSD"]
+trading_lock_file: "./killswitch_trading_lock.json"
+
+spot_routing:
+  sell_intermediate_delta_only: true
+  allow_liquidate_preexisting_intermediate: false
+
+_common_futures_stages: &common_futures_stages
+  enabled: true
+  account_mode: "directional_futures"
+  windows: ["15m", "1h"]
+
+  stage_1:
+    thresholds:
+      "15m": 0.045
+      "1h": 0.070
+    confirm_consecutive: 3
+    mode: "CLOSE_TOP_RISK_CONTRIBUTORS"
+    source_mode: "AUTO"
+    source_threshold: 0.65
+    top_n: 3
+    close_fraction: 0.50
+    full_close_if_liq_distance_below_pct: 0.03
+    cancel_entry_orders_before_close: true
+    set_trading_lock: true
+    cooldown_min: 30
+
+  stage_2:
+    thresholds:
+      "15m": 0.070
+      "1h": 0.100
+    confirm_consecutive: 2
+    mode: "CLOSE_DOMINANT_LOSS_DIRECTION"
+    source_mode: "AUTO"
+    source_threshold: 0.60
+    cancel_entry_orders_before_close: true
+    set_trading_lock: true
+    cooldown_min: 90
+
+  stage_3:
+    thresholds:
+      "15m": 0.100
+      "1h": 0.140
+    confirm_consecutive: 1
+    mode: "CLOSE_ALL_POSITIONS"
+    cancel_entry_orders_before_close: true
+    set_trading_lock: true
+    cooldown_min: 360
+
+exchanges:
+  binance:
+    enabled: true
+    api_key_env: "BINANCE_API_KEY"
+    api_secret_env: "BINANCE_API_SECRET"
+    accounts:
+      futures: *common_futures_stages
+      spot:
+        enabled: true
+        windows: ["1h"]
+        tier_a:
+          thresholds: { "1h": 0.12 }
+          mode: "SELL_BLACKLIST_ONLY_KEEP_STABLES"
+          blacklist: ["DOGE", "SHIB", "PEPE"]
+          cooldown_min: 120
+        tier_b:
+          thresholds: { "1h": 0.20 }
+          mode: "SELL_ALL_NON_USDT_KEEP_STABLES"
+          cooldown_min: 480
+
+  bybit:
+    enabled: true
+    api_key_env: "BYBIT_API_KEY"
+    api_secret_env: "BYBIT_API_SECRET"
+    accounts:
+      futures: *common_futures_stages
+      spot:
+        enabled: true
+        windows: ["1h"]
+        tier_a:
+          thresholds: { "1h": 0.12 }
+          mode: "SELL_BLACKLIST_ONLY_KEEP_STABLES"
+          blacklist: ["DOGE", "SHIB"]
+          cooldown_min: 120
+        tier_b:
+          thresholds: { "1h": 0.20 }
+          mode: "SELL_ALL_NON_USDT_KEEP_STABLES"
+          cooldown_min: 480
+
+  bitget:
+    enabled: true
+    api_key_env: "BITGET_API_KEY"
+    api_secret_env: "BITGET_API_SECRET"
+    password_env: "BITGET_PASSWORD"
+    accounts:
+      futures: *common_futures_stages
+      spot:
+        enabled: true
+        windows: ["1h"]
+        tier_a:
+          thresholds: { "1h": 0.12 }
+          mode: "SELL_BLACKLIST_ONLY_KEEP_STABLES"
+          blacklist: ["DOGE", "SHIB"]
+          cooldown_min: 120
+        tier_b:
+          thresholds: { "1h": 0.20 }
+          mode: "SELL_ALL_NON_USDT_KEEP_STABLES"
+          cooldown_min: 480

@@ -1,0 +1,44 @@
+[Unit]
+Description=funding-arb WS recorder (Bitget+Binance USDT-M futures)
+Documentation=file:///opt/funding_arb/deploy/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=funding-arb
+Group=funding-arb
+WorkingDirectory=/opt/funding_arb
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/funding_arb/.venv/bin/python -m src.recorder.main \
+    --venues bitget binance \
+    --coins BTC ETH SOL BNB XRP DOGE AVAX LINK SUI TAO HYPE PEPE TRUMP AAVE PENGU \
+    --depth-levels 20 \
+    --quota-gb 100 \
+    --flush-rows 5000 \
+    --flush-interval-s 30
+# Recorder traps SIGINT/SIGTERM and flushes buffers before exit;
+# give it 60s grace before SIGKILL so no in-flight rows are dropped.
+TimeoutStopSec=60
+KillSignal=SIGINT
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/funding-arb/recorder.log
+StandardError=append:/var/log/funding-arb/recorder.log
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/funding_arb/data /var/log/funding-arb
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

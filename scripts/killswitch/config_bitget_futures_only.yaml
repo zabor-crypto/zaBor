@@ -1,0 +1,87 @@
+# ==============================================================================
+# KILLSWITCH — Bitget Futures only config
+# ==============================================================================
+#
+# Steps before live deployment:
+#   1. Set dry_run: true
+#   2. Run: python3 killswitch.py --test-mock
+#   3. Run: python3 -m pytest tests/ -v
+#   4. Run in dry-run mode for 24–48 hours and verify behavior
+#   5. Only then set dry_run: false
+# ==============================================================================
+
+# GLOBAL SETTINGS
+poll_seconds: 60                                 # poll exchange every 60 seconds
+state_db: "./killswitch.sqlite"                  # state database path
+dry_run: true                                    # ⚠️ MUST be true until validated!
+stables_keep: ["USDT", "USDC"]
+trading_lock_file: "./killswitch_trading_lock.json"
+
+# Spot routing not used (futures only), safe defaults left in place
+spot_routing:
+  sell_intermediate_delta_only: true
+  allow_liquidate_preexisting_intermediate: false
+
+# EXCHANGES — only Bitget enabled
+exchanges:
+
+  binance:
+    enabled: false      # disabled
+
+  bybit:
+    enabled: false      # disabled
+
+  bitget:
+    enabled: true
+    api_key_env: "BITGET_API_KEY"
+    api_secret_env: "BITGET_API_SECRET"
+    password_env: "BITGET_PASSWORD"             # Bitget requires passphrase
+    accounts:
+
+      futures:
+        enabled: true
+        account_mode: "directional_futures"
+        windows: ["15m", "1h"]                  # two drawdown calculation windows
+
+        stage_1:
+          # Stage 1: close top-3 losing positions at 50%
+          thresholds:
+            "15m": 0.045    # -4.5% in 15 minutes
+            "1h":  0.070    # -7.0% in 1 hour
+          confirm_consecutive: 3    # 3 consecutive polls must confirm drawdown
+          mode: "CLOSE_TOP_RISK_CONTRIBUTORS"
+          source_mode: "AUTO"       # auto-detect whether longs or shorts are responsible
+          source_threshold: 0.65    # one side must account for ≥65% of losses
+          top_n: 3                  # close top 3 by risk score
+          close_fraction: 0.50      # close 50% of each position
+          full_close_if_liq_distance_below_pct: 0.03  # full close if <3% from liquidation
+          cancel_entry_orders_before_close: true
+          set_trading_lock: true
+          cooldown_min: 30          # no repeat within 30 min
+
+        stage_2:
+          # Stage 2: close all positions on the dominant losing side
+          thresholds:
+            "15m": 0.070
+            "1h":  0.100
+          confirm_consecutive: 2
+          mode: "CLOSE_DOMINANT_LOSS_DIRECTION"
+          source_mode: "AUTO"
+          source_threshold: 0.60
+          cancel_entry_orders_before_close: true
+          set_trading_lock: true
+          cooldown_min: 90
+
+        stage_3:
+          # Stage 3: full stop — cancel all orders, close all positions
+          thresholds:
+            "15m": 0.100
+            "1h":  0.140
+          confirm_consecutive: 1
+          mode: "CLOSE_ALL_POSITIONS"
+          cancel_entry_orders_before_close: true
+          set_trading_lock: true
+          cooldown_min: 360         # 6 hours, requires manual removal
+
+      spot:
+        enabled: false              # spot not used

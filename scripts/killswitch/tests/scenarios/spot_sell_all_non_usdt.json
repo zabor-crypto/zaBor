@@ -1,0 +1,22 @@
+{
+  "name": "spot_sell_all_non_usdt",
+  "description": "Sell everything except stables",
+  "mode": "spot",
+  "balances": {
+    "USDT": 1000,
+    "BTC": 0.05,
+    "SOL": 10,
+    "USDC": 200
+  },
+  "stables_keep": [
+    "USDT",
+    "USDC"
+  ],
+  "blacklist": null,
+  "action": "SELL_ALL_NON_USDT_KEEP_STABLES",
+  "expected_orders": 2,
+  "expected_sold": [
+    "BTC",
+    "SOL"
+  ]
+}

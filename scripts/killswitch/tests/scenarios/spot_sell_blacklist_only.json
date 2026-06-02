@@ -1,0 +1,23 @@
+{
+  "name": "spot_sell_blacklist_only",
+  "description": "Sell only blacklist coins, keep stables and others",
+  "mode": "spot",
+  "balances": {
+    "USDT": 1000,
+    "BTC": 0.1,
+    "DOGE": 5000,
+    "USDC": 500
+  },
+  "stables_keep": [
+    "USDT",
+    "USDC"
+  ],
+  "blacklist": [
+    "DOGE"
+  ],
+  "action": "SELL_BLACKLIST_ONLY_KEEP_STABLES",
+  "expected_orders": 1,
+  "expected_sold": [
+    "DOGE"
+  ]
+}
