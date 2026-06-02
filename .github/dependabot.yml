@@ -1,0 +1,9 @@
+version: 2
+updates:
+  # Only track the root-level package ecosystem
+  # Scripts in scripts/ are research/standalone code — not auto-bumped
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3

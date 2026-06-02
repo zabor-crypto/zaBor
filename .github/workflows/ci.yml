@@ -38,10 +38,20 @@ jobs:
             types-PyYAML
 
       - name: Lint
-        run: python -m ruff check .
+        run: |
+          python -m ruff check . \
+            --exclude scripts/killswitch \
+            --exclude scripts/funding_arb_research \
+            --exclude scripts/lighter_mm \
+            --exclude scripts/alt_4h_scanner
 
       - name: Typecheck
-        run: python -m mypy .
+        run: |
+          python -m mypy . \
+            --exclude scripts/killswitch \
+            --exclude scripts/funding_arb_research \
+            --exclude scripts/lighter_mm \
+            --exclude scripts/alt_4h_scanner
 
       - name: Tests
-        run: python -m pytest -q
+        run: python -m pytest -q --ignore=scripts
