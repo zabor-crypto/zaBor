@@ -2,8 +2,22 @@
 
 ## Status: Requires Validation Before Live Use
 
-**Version:** 6.0 (stage-based risk attribution engine)  
-**Last updated:** 2026-05-04
+**Version:** 7.0 (v6.0 fast-crash stages + Regime Guard for slow-bleed protection)
+**Last updated:** 2026-06-11
+
+---
+
+## v7.0 — Regime Guard rollout checklist (in addition to the stage checklist below)
+
+1. `python3 -m pytest tests/ -v` — incl. `test_regime_guard.py` + `test_guardrails.py` (130+ tests).
+2. Add the `regime_guard:` block to your futures account config with **`log_only: true`**.
+3. Run the kill-switch; confirm `[REGIME_GUARD] [LOG-ONLY] …` lines appear each cycle with no errors,
+   and that the macro fetch (`btc7d=…`) is populated.
+4. Observe 2–5 days. Verify it stays quiet in a fine macro and that its "WOULD close" picks look right.
+5. Flip **`log_only: false`** and restart; monitor closely the first week.
+
+The Regime Guard is **additive and fail-safe**: any error inside it is swallowed so the fast stages are
+never affected, and if the `regime_guard` block is absent behaviour is identical to v6.0.
 
 ---
 
@@ -64,15 +78,17 @@ python3 killswitch.py --config config.yaml
 
 ---
 
-## Test Coverage (v6.0)
+## Test Coverage (v7.0 — 130+ tests)
 
-| Suite | Tests | Notes |
-|-------|-------|-------|
-| `tests/test_logic.py` | 37 | Original drawdown + config logic |
-| `tests/test_actions.py` | — | Original action execution |
-| `tests/test_attribution.py` | 23 | PnL attribution, risk ranking, liq proximity |
-| `tests/test_stage_machine.py` | 22 | Stage state machine transitions |
-| `tests/test_integration.py` | 12 | End-to-end scenarios A–E |
+| Suite | Notes |
+|-------|-------|
+| `tests/test_logic.py` | Drawdown + config logic |
+| `tests/test_actions.py` | Action execution |
+| `tests/test_attribution.py` | PnL attribution, risk ranking, liq proximity |
+| `tests/test_stage_machine.py` | Stage state machine transitions |
+| `tests/test_integration.py` | End-to-end scenarios A–E |
+| `tests/test_regime_guard.py` | ★ Regime Guard: L0 cap, L2/L3/L4, velocity selection, side-aware gates |
+| `tests/test_guardrails.py` | ★ log-only, re-entry cooldown, daily-cap (integration) |
 
 Run `python3 -m pytest tests/ -v` to verify all pass in your environment before trusting results.
 
@@ -116,7 +132,8 @@ Write Trading Lock File + Record Stage State
 ## Files
 
 ```
-killswitch.py          # Main script (v6.0)
+killswitch.py          # Main script (v7.0)
+regime_guard.py        # ★ Regime Guard (v7.0): L0/L2/L3/L4 + velocity + gates + guardrails
 risk_attribution.py    # PnL attribution + risk ranking
 stage_machine.py       # Stage state machine (SQLite-backed)
 order_safety.py        # CloseInstruction dataclass

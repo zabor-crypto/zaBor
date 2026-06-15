@@ -45,24 +45,27 @@ def test_is_confirmed_with_3_consecutive():
 
 
 def test_is_confirmed_with_recovery_in_middle():
-    """Test that recovery in middle breaks consecutive streak"""
+    """Test that recovery in the most-recent consecutive window breaks the streak"""
     store = SqliteStore(":memory:")
     dd_calc = DrawdownCalculator(store)
     scope = Scope(ExchangeId.BINANCE, AccountType.FUTURES)
     base_ts = int(time.time())
-    
-    # Pattern: drop, recover briefly, drop again
-    pattern = [10000]*5 + [9500]*3 + [9900] + [9500]*6
+
+    # Pattern: stable → drop → recovery appears in the final 3 points
+    # [10000]*5 gives the high-water mark; [9500]*5 are confirmed breaches;
+    # [9900]*3 are partial recoveries (dd≈1% < 4% threshold) ending the window
+    pattern = [10000]*5 + [9500]*5 + [9900]*3
     for i, equity in enumerate(pattern):
         snap = EquitySnapshot(base_ts + i*60, scope, equity, quality_ok=True)
         store.append_snapshot(snap)
-    
+
     now = base_ts + (len(pattern)-1)*60
     threshold = 0.04
     window = 10
     consecutive = 3
-    
-    # Should NOT confirm due to recovery spike
+
+    # Should NOT confirm: the last 3 points are 9900 which is only 1% below
+    # 10000 — below the 4% threshold, so breach_count < 3
     confirmed = dd_calc.is_confirmed(scope, threshold, window, now, consecutive)
     assert confirmed is False
 
@@ -214,24 +217,27 @@ def test_multiple_scopes_isolation():
     
     base_ts = int(time.time())
     
-    # Insert different data for each scope
+    # Insert data with different percentage drops per scope so DD% differs
+    # scope1: 10000 → 9100 (9% drop),  step = -100/step
+    # scope2: 5000  → 4700 (6% drop),  step = -33/step  (different rate)
+    # scope3: 15000 → 13200 (12% drop), step = -200/step
     for i in range(10):
         snap1 = EquitySnapshot(base_ts + i*60, scope1, 10000 - i*100, quality_ok=True)
-        snap2 = EquitySnapshot(base_ts + i*60, scope2, 5000 - i*50, quality_ok=True)
-        snap3 = EquitySnapshot(base_ts + i*60, scope3, 15000 - i*150, quality_ok=True)
-        
+        snap2 = EquitySnapshot(base_ts + i*60, scope2, 5000 - i*33, quality_ok=True)
+        snap3 = EquitySnapshot(base_ts + i*60, scope3, 15000 - i*200, quality_ok=True)
+
         store.append_snapshot(snap1)
         store.append_snapshot(snap2)
         store.append_snapshot(snap3)
-    
+
     now = base_ts + 540
-    
+
     # Compute DD for each scope
     dds1 = dd_calc.compute(scope1, now, ["10"])
     dds2 = dd_calc.compute(scope2, now, ["10"])
     dds3 = dd_calc.compute(scope3, now, ["10"])
-    
-    # Each should have different values
+
+    # Scopes are isolated — each has a different drawdown percentage
     assert dds1["10"] != dds2["10"]
     assert dds2["10"] != dds3["10"]
     assert dds1["10"] != dds3["10"]

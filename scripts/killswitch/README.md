@@ -4,8 +4,10 @@
 
 Stop blindly closing everything when drawdown hits. Killswitch identifies *which side caused the loss*, ranks positions by risk, and closes surgically — escalating to more aggressive stages only if the situation worsens.
 
-**Version:** 6.0 — stage-based PnL attribution engine  
-**Status:** Requires dry-run validation before live use (see [QUICKSTART.md](QUICKSTART.md))
+**Version:** 7.0 — fast-crash stages + Regime Guard for slow-bleed protection  
+**Status:** Requires dry-run / log-only validation before live use (see [QUICKSTART.md](QUICKSTART.md))
+
+See [CHANGELOG.md](CHANGELOG.md) for the full v7.0 changes.
 
 ---
 
@@ -13,7 +15,11 @@ Stop blindly closing everything when drawdown hits. Killswitch identifies *which
 
 Standard kill-switches close all positions on drawdown. The problem: if you're running a hedged book (longs + shorts), closing everything converts a temporary drawdown into a realized loss on both sides. Worse, if only shorts are bleeding, closing longs removes your hedge.
 
-Killswitch v6.0 solves this with a three-stage architecture:
+Killswitch has two complementary contours:
+
+### Contour 1 — fast-crash stages (v6.0)
+
+For a *sharp* move, identify which side caused the loss and close it surgically, escalating only if it worsens:
 
 | Stage | Mode | What it does |
 |-------|------|-------------|
@@ -22,6 +28,27 @@ Killswitch v6.0 solves this with a three-stage architecture:
 | 3 | `CLOSE_ALL_POSITIONS` | Full stop: cancels entries, closes everything, cancels orphan orders |
 
 Stages escalate upward only. Stage 3 requires manual reset.
+
+### Contour 2 — Regime Guard (new in v7.0)
+
+The fast stages require a sharp move (≥4.5% / 15m). But a drawdown can also accumulate as a **slow grind** — positions held underwater for days, a single coin squeezed against you — where no 15-minute threshold ever trips. The Regime Guard is a second, **additive**, portfolio-level contour that runs every cycle alongside the fast stages. It is **close-only** (never flips, never imposes a blanket per-trade stop) and acts only when the *market regime* turns against the book.
+
+| Layer | Trigger | Action |
+|-------|---------|--------|
+| **L0** catastrophe cap | Any single position loses > 8% of account equity | Close that position immediately, any regime |
+| **L2** portfolio peak-drawdown | Equity ≤ −5% from rolling 48h peak, sustained | Close the dominant losing side |
+| **L3** correlated cluster | ≥4 same-side positions all ≤ −6% on margin | Close that side |
+| **L4** daily loss | Equity ≤ −6% from UTC day-open | Close the dominant losing side |
+
+Three design choices distinguish it:
+
+- **Drawdown-velocity selection** — closes the top-3 *fastest-bleeding* positions (blended 15m+1h+4h bleed-rate), not the biggest current loss.
+- **Side-aware macro gate** — L2/L3 fire only when BTC macro is confirmed against the side (longs when BTC 7d < 0, shorts when BTC 7d > 0), so the guard doesn't flush recoverable dips inside a slow trend. L4 is always-on.
+- **Symmetric** — longs and shorts handled identically.
+
+Validated by counterfactual replay of a real account's own 60-second history: max drawdown roughly halved, positive/neutral across uptrend / chop / downtrend.
+
+**Rollout guardrails:** `log_only` (compute + log/Telegram "WOULD close X", execute nothing), `reentry_cooldown_min` (stop guard↔bot churn), `max_closes_per_day` (runaway backstop). Fully additive — if `regime_guard` is absent from the config, behaviour is identical to v6.0.
 
 ---
 
@@ -76,9 +103,11 @@ Default trigger thresholds (futures):
 | 2 | −7.0% | −10.0% | 2 consecutive | 90 min |
 | 3 | −10.0% | −14.0% | 1 | 360 min |
 
-All thresholds, cooldowns, and exchange settings are in `config.yaml`. The file is heavily commented. API keys are loaded from environment variables — never hardcoded.
+All thresholds, cooldowns, exchange settings, and the `regime_guard` block are in `config.yaml`. The file is heavily commented. API keys are loaded from environment variables — never hardcoded.
 
-See `config_bitget_futures_only.yaml` for a single-exchange example, and `config_stage_based_example.yaml` for a full multi-exchange template.
+See `config_bitget_futures_only.yaml` for a single-exchange example with the Regime Guard and Telegram alerts enabled, and `config_stage_based_example.yaml` for a full multi-exchange template.
+
+**Telegram alerts** are optional: set `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` in `.env` and enable the `notifications.telegram` block. The notifier uses only the Python standard library (no extra dependencies).
 
 ---
 
@@ -118,7 +147,7 @@ cat killswitch_trading_lock.json
 python3 -m pytest tests/ -v
 ```
 
-94+ tests across 5 suites. The system is **not ready for live use** until all tests pass in your environment.
+130+ tests across 7 suites. The system is **not ready for live use** until all tests pass in your environment.
 
 | Suite | Coverage |
 |-------|---------|
@@ -127,6 +156,8 @@ python3 -m pytest tests/ -v
 | `test_attribution.py` | PnL attribution (SHORT/LONG/MIXED), risk ranking, liq proximity |
 | `test_stage_machine.py` | Stage transitions, cooldown, escalation, de-escalation block |
 | `test_integration.py` | End-to-end: losing shorts, losing longs, mixed, escalation, stale orders |
+| `test_regime_guard.py` | L0/L2/L3/L4 layers, velocity selection, macro gates, symmetry |
+| `test_guardrails.py` | log_only, re-entry cooldown, daily close cap |
 
 ---
 
@@ -136,15 +167,17 @@ python3 -m pytest tests/ -v
 killswitch.py              # Main script
 risk_attribution.py        # PnL attribution + risk ranking engine
 stage_machine.py           # Stage state machine (SQLite-backed)
+regime_guard.py            # Regime Guard — slow-bleed / portfolio-level protection (v7.0)
+telegram_notifier.py       # Optional Telegram alerts (stdlib only, no extra deps)
 order_safety.py            # CloseInstruction dataclass
 trading_lock.py            # File-based trading lock
 position_store.py          # Position snapshot persistence
 logger.py                  # Structured logging
 config.yaml                # Full multi-exchange config (dry_run: true by default)
-config_bitget_futures_only.yaml   # Single-exchange example
+config_bitget_futures_only.yaml   # Single-exchange example with regime_guard + Telegram
 config_stage_based_example.yaml   # Annotated multi-exchange template
 requirements.txt
-tests/                     # 94+ tests
+tests/                     # 130+ tests
 tools/                     # dryrun_smoke.py, e2e_demo_runner.py
 ```
 

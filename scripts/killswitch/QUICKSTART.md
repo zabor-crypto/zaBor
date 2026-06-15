@@ -1,9 +1,15 @@
 # Quick Start Guide
 
+> **v7.0** adds the **Regime Guard** — a second, additive contour that catches the *slow bleed* the
+> fast-crash stages never see (see README + CHANGELOG). It's configured under `regime_guard:` and ships
+> in `log_only: true` (observe-only): it logs / Telegrams "WOULD close X" but executes nothing until you
+> flip it. **Recommended rollout: run it in `log_only: true` for a few days, watch the alerts, then set
+> `log_only: false`.** The existing fast stages are unchanged and run alongside it.
+
 ## Installation
 
 ```bash
-pip install ccxt pyyaml tenacity
+pip install ccxt pyyaml tenacity pytest
 ```
 
 ## Configuration
@@ -59,6 +65,26 @@ After successful dry-run:
 1. Edit config.yaml: `dry_run: false`
 2. Restart: `python3 killswitch.py --config config.yaml`
 3. Monitor intensively first week
+
+## Regime Guard rollout (v7.0)
+
+The Regime Guard catches the slow bleed (positions held underwater for days; a single coin pumped
+against you) that the fast stages miss. Roll it out separately and gently:
+
+1. In the config, under the futures account, ensure the `regime_guard:` block is present with
+   `enabled: true` and **`log_only: true`**.
+2. Run the kill-switch normally. The guard now logs / Telegrams `[REGIME_GUARD] [LOG-ONLY] … WOULD
+   close X` but **executes nothing** (the fast stages keep their own `dry_run`).
+3. Watch for 2–5 days. Confirm:
+   - it stays quiet when the macro is fine (e.g. `fired=False` while BTC 7d ≥ 0),
+   - when it *would* fire, the chosen positions are the genuinely bleeding ones,
+   - no errors / tracebacks in the log.
+4. When the behaviour looks right, set **`log_only: false`** and restart. The guard now executes
+   (close-only — it never blocks your bots).
+
+Tune to taste: `dd_trig` / `cl_pct` / `cluster_k` / `dl_trig` (sensitivity), `max_loss_pct_equity`
+(the catastrophe cap), `close_top_n` (how many of the fastest bleeders to cut), `trend_gate_7d`
+(how strictly to require a confirmed-adverse macro). See README for the full table.
 
 ## Monitoring
 
