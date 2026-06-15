@@ -26,7 +26,7 @@ Default mode is **`dry_run: true`**. You are responsible for:
 | Path | Description |
 |------|-------------|
 | [`scripts/alt_4h_scanner/`](scripts/alt_4h_scanner/) | Binance spot scanner — 4H accumulation breakout detection with 9-filter stack, computes structured limit-order levels for pullback entries |
-| [`scripts/killswitch/`](scripts/killswitch/) | Emergency risk management system v6.0 — PnL attribution engine, staged closure (surgical → directional → full stop), Binance/Bybit/Bitget, 94+ tests |
+| [`scripts/killswitch/`](scripts/killswitch/) | Emergency risk management system v7.0 — PnL attribution + staged closure plus a portfolio-level Regime Guard for slow-bleed drawdowns, Binance/Bybit/Bitget, 139 tests |
 | [`scripts/funding_arb_research/`](scripts/funding_arb_research/) | Funding rate arbitrage research stack — async collectors for 6 venues, strategy-agnostic backtest engine, 8 strategies evaluated |
 | [`scripts/liquidation_signal_research/`](scripts/liquidation_signal_research/) | Binance liquidation cascade signal — event-sourced paper-trading pipeline, microstructure features, 22K paper trade validation. Research in progress. |
 | [`scripts/lighter_mm/`](scripts/lighter_mm/) | Market-making strategy simulator for Lighter.xyz DEX — spread quoting, inventory skew, toxicity filter, walk-forward optimization |
@@ -51,12 +51,13 @@ pip install -e ".[dev]"
 
 ## Scripts
 
-### Kill-Switch v6.0 (`scripts/killswitch/`)
+### Kill-Switch v7.0 (`scripts/killswitch/`)
 
-Stage-based emergency risk management system. Instead of blindly closing all positions on drawdown, v6.0 identifies which side caused the loss (longs vs shorts), ranks positions by a composite risk score, and closes surgically — escalating only if the situation worsens.
+Emergency risk management system with two complementary contours. The **fast-crash stages** identify which side caused a sharp loss (longs vs shorts), rank positions by a composite risk score, and close surgically — escalating only if it worsens. The **Regime Guard** (v7.0) adds a portfolio-level contour for the *slow bleed* the fast stages never see: positions held underwater for days, or a single coin squeezed against you. Close-only, with drawdown-velocity selection and a side-aware macro gate.
 
 **Stages:** 1 → close top-N risk contributors · 2 → close dominant losing direction · 3 → full stop (manual reset required)  
-**Exchanges:** Binance, Bybit, Bitget · Futures + Spot · SQLite state · 94+ tests
+**Regime Guard:** L0 catastrophe cap · L2 peak-drawdown · L3 correlated cluster · L4 daily loss · log-only rollout mode  
+**Exchanges:** Binance, Bybit, Bitget · Futures + Spot · SQLite state · 139 tests
 
 ```bash
 cd scripts/killswitch
