@@ -62,6 +62,8 @@ from stage_machine import StageMachine, StageState, STAGE_NAMES, STAGE_ALL_FUTUR
 from order_safety import CloseInstruction
 from trading_lock import TradingLock
 from position_store import PositionStore
+from telegram_notifier import TelegramNotifier, build_notifier
+from regime_guard import RegimeGuardConfig, evaluate_regime_guard
 
 # ==============================================================================
 # CONSTANTS
@@ -175,6 +177,7 @@ class AccountConfig:
     tier_a: Optional[StageConfig] = None
     tier_b: Optional[StageConfig] = None
     account_mode: str = "standard"
+    regime_guard: Optional["RegimeGuardConfig"] = None
 
     def get_stage(self, n: int) -> Optional[StageConfig]:
         return {1: self.stage_1, 2: self.stage_2, 3: self.stage_3}.get(n)
@@ -192,6 +195,12 @@ class ExchangeConfig:
     accounts: Dict[str, AccountConfig] = field(default_factory=dict)
 
 @dataclass
+class TelegramConfig:
+    enabled: bool = False
+    bot_token_env: str = "TELEGRAM_BOT_TOKEN"
+    chat_id_env: str = "TELEGRAM_CHAT_ID"
+
+@dataclass
 class GlobalConfig:
     poll_seconds: int
     state_db: str
@@ -201,6 +210,7 @@ class GlobalConfig:
     trading_lock_file: str = "./killswitch_trading_lock.json"
     spot_routing_delta_only: bool = True
     spot_routing_allow_preexisting: bool = False
+    telegram: TelegramConfig = field(default_factory=TelegramConfig)
 
 # ==============================================================================
 # SECTION 2: CONFIG LOADER
@@ -253,6 +263,12 @@ class ConfigLoader:
             )
 
         spot_routing = data.get('spot_routing', {})
+        tg_data = data.get('notifications', {}).get('telegram', {})
+        telegram_cfg = TelegramConfig(
+            enabled=tg_data.get('enabled', False),
+            bot_token_env=tg_data.get('bot_token_env', 'TELEGRAM_BOT_TOKEN'),
+            chat_id_env=tg_data.get('chat_id_env', 'TELEGRAM_CHAT_ID'),
+        )
         return GlobalConfig(
             poll_seconds=data.get('poll_seconds', 60),
             state_db=data.get('state_db', './killswitch_state.sqlite'),
@@ -262,6 +278,7 @@ class ConfigLoader:
             trading_lock_file=data.get('trading_lock_file', './killswitch_trading_lock.json'),
             spot_routing_delta_only=spot_routing.get('sell_intermediate_delta_only', True),
             spot_routing_allow_preexisting=spot_routing.get('allow_liquidate_preexisting_intermediate', False),
+            telegram=telegram_cfg,
         )
 
     def _parse_acc(self, data: dict) -> AccountConfig:
@@ -297,12 +314,23 @@ class ConfigLoader:
             tier_a=tier_a,
             tier_b=tier_b,
             account_mode=data.get('account_mode', 'standard'),
+            regime_guard=self._parse_regime_guard(data.get('regime_guard')),
         )
 
         if acc.enabled and not acc.windows:
             raise ValueError("Account enabled but 'windows' is empty")
 
         return acc
+
+    def _parse_regime_guard(self, data: Optional[dict]) -> Optional[RegimeGuardConfig]:
+        if not data:
+            return None
+        valid = {f for f in RegimeGuardConfig.__dataclass_fields__}
+        kwargs = {k: v for k, v in data.items() if k in valid}
+        unknown = set(data) - valid
+        if unknown:
+            print(f"[CONFIG WARNING] regime_guard: ignoring unknown keys {sorted(unknown)}")
+        return RegimeGuardConfig(**kwargs)
 
     def _parse_stage(self, data: Optional[dict]) -> Optional[StageConfig]:
         if not data:
@@ -423,8 +451,8 @@ class SqliteStore:
         min_ts = now_ts - lookback_sec
         cur = self.conn.cursor()
         cur.execute(
-            'SELECT ts, equity FROM snapshots WHERE exchange=? AND account=? AND ts>=? ORDER BY ts ASC',
-            (scope.exchange.value, scope.account.value, min_ts)
+            'SELECT ts, equity FROM snapshots WHERE exchange=? AND account=? AND ts>=? AND ts<=? ORDER BY ts ASC',
+            (scope.exchange.value, scope.account.value, min_ts, now_ts)
         )
         return cur.fetchall()
 
@@ -608,6 +636,7 @@ class RealCCXTAdapter(BaseAdapter):
         super().__init__(config)
         self.ex_id = ex_id
         self.spot_routing_delta_only = spot_routing_delta_only
+        self._macro_cache = {"ts": 0, "ret24": None, "ret6": None}
         opts = {
             'apiKey': config.api_key,
             'secret': config.api_secret,
@@ -646,7 +675,7 @@ class RealCCXTAdapter(BaseAdapter):
     def _futures_params(self) -> dict:
         params = {}
         if self.ex_id == ExchangeId.BITGET:
-            params['productType'] = 'umcbl'
+            params['productType'] = 'USDT-FUTURES'
         elif self.ex_id == ExchangeId.BYBIT:
             params['category'] = 'linear'
             params['settleCoin'] = 'USDT'
@@ -941,6 +970,27 @@ class RealCCXTAdapter(BaseAdapter):
             print(f"[ERROR] fetch_open_orders {scope}: {e}")
             return []
 
+    def get_macro_returns(self, now_ts: int) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+        """BTC (24h, 6h, 7d) returns for the regime gates. Cached 5 min. Uses the account's own
+        exchange client (reachable from the box). Returns (None, None, None) on failure -> the 24h/6h
+        gates open permissively, but the 7d trend gate (which requires a real reading) stays closed so a
+        slow bull cannot slip through on a failed fetch."""
+        if now_ts - self._macro_cache["ts"] < 300:
+            return self._macro_cache["ret24"], self._macro_cache["ret6"], self._macro_cache.get("ret7d")
+        try:
+            sym = "BTC/USDT:USDT" if self.ex_id == ExchangeId.BITGET else "BTC/USDT"
+            ohlcv = self._retry_with_backoff(
+                lambda: self.client_futures.fetch_ohlcv(sym, "1h", limit=180))
+            closes = [c[4] for c in ohlcv if c and c[4]]
+            ret24 = closes[-1] / closes[-25] - 1.0 if len(closes) >= 25 else None
+            ret6 = closes[-1] / closes[-7] - 1.0 if len(closes) >= 7 else None
+            ret7d = closes[-1] / closes[-169] - 1.0 if len(closes) >= 169 else None
+            self._macro_cache = {"ts": now_ts, "ret24": ret24, "ret6": ret6, "ret7d": ret7d}
+            return ret24, ret6, ret7d
+        except Exception as e:
+            print(f"[WARN] get_macro_returns failed: {e}")
+            return None, None, None
+
     def cancel_entry_orders(self, scope: Scope, symbols: Optional[List[str]] = None) -> ActionResult:
         """Cancel open non-reduce-only orders (entry orders) before a kill action."""
         try:
@@ -1178,6 +1228,10 @@ class MockAdapter(BaseAdapter):
         self.base_ts = int(time.time())
         self._mock_positions: List[PositionSnapshot] = []
         self._mock_orders: List[dict] = []
+        self._mock_macro: Tuple[Optional[float], Optional[float], Optional[float]] = (None, None, None)
+
+    def get_macro_returns(self, now_ts: int) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+        return self._mock_macro
 
     def set_scenario(self, data):
         self.scenario = data
@@ -1226,7 +1280,8 @@ class ActionEngine:
                  stables: List[str], breaker: CircuitBreaker,
                  stage_machine: Optional[StageMachine] = None,
                  position_store: Optional[PositionStore] = None,
-                 trading_lock: Optional[TradingLock] = None):
+                 trading_lock: Optional[TradingLock] = None,
+                 notifier: Optional[TelegramNotifier] = None):
         self.store = store
         self.adapters = adapters
         self.dry = dry
@@ -1235,6 +1290,7 @@ class ActionEngine:
         self.stage_machine = stage_machine
         self.position_store = position_store
         self.trading_lock = trading_lock
+        self.notifier = notifier
 
     # ------------------------------------------------------------------
     # Stage-based execution (new)
@@ -1304,6 +1360,16 @@ class ActionEngine:
                     self.trading_lock.set_lock(
                         str(scope), stage, reason_str, conf.cooldown_min * 60, details)
                     print(f"  [TRADING LOCK] Set for {scope} stage {stage}")
+                    if self.notifier:
+                        self.notifier.notify_trading_lock(str(scope), stage, lock_until)
+
+                if self.notifier:
+                    dd_str = ', '.join(f"{w}:{v:.1%}" for w, v in sorted(decision.dd.items()))
+                    self.notifier.notify_stage_executed(
+                        str(scope), stage, conf.mode, self.dry,
+                        positions_closed=res.orders_placed,
+                        dd_str=dd_str,
+                    )
             else:
                 self.breaker.record_failure(scope)
 
@@ -1317,6 +1383,8 @@ class ActionEngine:
             print(f"  [ERROR] Stage {stage} failed: {e}")
             traceback.print_exc()
             self.breaker.record_failure(scope)
+            if self.notifier:
+                self.notifier.notify_error(str(scope), str(e))
             return False
 
     def _exec_close_top_risk(self, scope: Scope, conf: StageConfig,
@@ -1492,6 +1560,7 @@ def _process_stage_triggers(
     stage_machine: StageMachine,
     dd_calc: DrawdownCalculator,
     logger,
+    notifier: Optional[TelegramNotifier] = None,
 ) -> None:
     """Find and execute the highest-triggered stage for this scope."""
     dd_str = ', '.join(f"{w}:{v:.1%}" for w, v in sorted(dds.items()))
@@ -1522,6 +1591,8 @@ def _process_stage_triggers(
                 f"[{datetime.now().strftime('%H:%M')}] {scope} "
                 f"[STAGE {stage_num} BLOCKED] {block_reason}"
             )
+            if notifier:
+                notifier.notify_stage_blocked(str(scope), stage_num, block_reason)
             continue
 
         dd_val = dds.get(w, 0.0)
@@ -1533,6 +1604,11 @@ def _process_stage_triggers(
             f"\n[STAGE {stage_num} TRIGGER] {scope} | {conf.mode} | "
             f"Window={w} | DD={dd_val:.4f} > {thr}"
         )
+        if notifier:
+            notifier.notify_drawdown_warning(
+                str(scope), stage_num, w, dd_val, thr,
+                conf.confirm_consecutive, conf.confirm_consecutive,
+            )
 
         decision = StageDecision(snap.ts, scope, stage_num, dds, conf.mode)
         executed = engine.execute_stage(decision, conf, stage_machine)
@@ -1543,10 +1619,153 @@ def _process_stage_triggers(
     if not executed:
         state = stage_machine.get_state(str(scope))
         stage_label = STAGE_NAMES.get(state.current_stage, f"stage_{state.current_stage}")
-        print(
+        msg = (
             f"[{datetime.now().strftime('%H:%M')}] {scope} "
             f"[{stage_label}] Eq: ${snap.equity_usdt:.0f} | DD: {dd_str}"
         )
+        logger.info(msg)
+        print(msg)
+
+def _process_regime_guard(
+    scope: Scope,
+    gcfg: RegimeGuardConfig,
+    snap: EquitySnapshot,
+    positions: List[PositionSnapshot],
+    adapter: BaseAdapter,
+    store: SqliteStore,
+    pos_store: PositionStore,
+    trading_lock: TradingLock,
+    dry_run: bool,
+    logger,
+    notifier: Optional[TelegramNotifier],
+    guard_state: dict,
+) -> bool:
+    """Additive slow-bleed / cumulative-drawdown guard. Returns True if it acted.
+    Fully fail-safe: any error is logged and swallowed so the main stages are unaffected."""
+    try:
+        now = snap.ts
+        equity = float(snap.equity_usdt)
+        if equity <= 0 or not positions:
+            return False
+
+        # rolling peak over lookback
+        hist = store.get_history(scope, int(gcfg.peak_lookback_h * 3600), now)
+        peak = max((e for _, e in hist), default=equity) if hist else equity
+
+        # UTC day-open equity
+        midnight = (now // 86400) * 86400
+        hist_day = store.get_history(scope, now - midnight, now)
+        day_open = hist_day[0][1] if hist_day else equity
+
+        btc24, btc6, btc7d = adapter.get_macro_returns(now)
+
+        # ---- guardrail state (per scope): dd counter, daily-close count, re-entry registry ----
+        LOG_ONLY = bool(gcfg.log_only)
+        eff_dry = dry_run or LOG_ONLY            # log-only => never execute the GUARD (fast stages keep their dry_run)
+        tag = "[LOG-ONLY] " if LOG_ONLY else ""
+        day = now // 86400
+        gs = guard_state.setdefault(str(scope), {"dd_count": 0, "closes_today": 0, "day": day, "reentry": {}})
+        if gs.get("day") != day:                 # UTC day rollover -> reset the daily cap
+            gs["day"] = day; gs["closes_today"] = 0
+        dd_now = equity / peak - 1.0 if peak > 0 else 0.0
+        gs["dd_count"] = gs["dd_count"] + 1 if dd_now <= -gcfg.dd_trig else 0
+
+        def execute_plan(plan, layer, reason, set_lock):
+            """Execute (or log-only) a close plan + bookkeeping. Returns positions closed."""
+            n = len(plan); syms = [c.symbol for c in plan]
+            logger.critical(f"{tag}REGIME_GUARD [{layer}] {scope}: {reason} -> {syms}")
+            print(f"\n{tag}[REGIME_GUARD {layer}] {scope} | {reason} | "
+                  f"{'WOULD close' if LOG_ONLY else 'closing'} {n}: {syms}")
+            res = adapter.close_positions_by_plan(scope, plan, eff_dry)
+            print(f"  [RESULT] {res.success} | {res.details}")
+            # Register the re-entry cooldown ONLY for real fresh-trigger closes — NOT in log-only (nothing
+            # is actually closed, so there is no "re-open" to guard against) and NOT for the re-entry
+            # enforcement itself. `setdefault` anchors the window to the first flush so it never self-renews.
+            if gcfg.reentry_cooldown_min > 0 and not LOG_ONLY and layer != "reentry":
+                for c in plan:
+                    gs["reentry"].setdefault(f"{c.symbol}|{c.side}", now + gcfg.reentry_cooldown_min * 60)
+            gs["closes_today"] += n
+            if set_lock and not LOG_ONLY:
+                lock_sec = gcfg.l2_cooldown_min * 60 if layer == "L2_peakdd" else (((now // 86400) + 1) * 86400 - now)
+                trading_lock.set_lock(str(scope), stage=0, reason=f"regime_guard_{layer}",
+                                      expires_in_sec=int(lock_sec), details={})
+                print(f"  [LOCK] trading lock {int(lock_sec)//60}min ({layer})")
+            store.record_action(f"{scope}|{'logonly_' if LOG_ONLY else ''}regime_{layer}|{(now//300)*300}",
+                                f"{reason} | {res}", now)
+            if notifier:
+                try:
+                    notifier.send(f"🛡️ <b>{tag}REGIME GUARD [{layer}]</b> {scope}\n{reason}\n"
+                                  f"{'WOULD close' if LOG_ONLY else 'Closed'} {n}: {', '.join(syms)}",
+                                  dedup_key=f"regime_{scope}_{layer}", dedup_ttl=300)
+                except Exception:
+                    pass
+            return n
+
+        # ---- GUARDRAIL 1: re-entry cooldown (re-close a recently-flushed symbol that re-appeared) ----
+        # Live-only: it enforces real prior closes. In log-only nothing was actually flushed, so this
+        # would mistake an always-open position for a "re-opened" one and spam every cycle.
+        if gcfg.reentry_cooldown_min > 0 and not LOG_ONLY and gs["reentry"]:
+            for k in [k for k, exp in gs["reentry"].items() if now >= exp]:
+                gs["reentry"].pop(k, None)       # drop expired
+            reclose = [CloseInstruction(symbol=p.symbol, side=p.side, contracts=p.contracts,
+                                        close_fraction=1.0, reason="regime_reentry", risk_score=0.0,
+                                        pnl_delta_usdt=0.0, unrealized_pnl_usdt=p.unrealized_pnl_usdt)
+                       for p in positions if f"{p.symbol}|{p.side}" in gs["reentry"]]
+            if reclose:
+                execute_plan(reclose, "reentry",
+                             f"re-entry cooldown: {len(reclose)} flushed symbol(s) re-opened within "
+                             f"{gcfg.reentry_cooldown_min}min", set_lock=False)
+                return True
+
+        # ---- continuous-underwater hours + velocity per open position ----
+        uw, velocity = {}, {}
+        for p in positions:
+            uw[(p.symbol, p.side)] = pos_store.continuous_underwater_hours(
+                scope, p.symbol, p.side, now, max_h=gcfg.til_hours + 6)
+            velocity[(p.symbol, p.side)] = pos_store.composite_bleed_rate(
+                scope, p.symbol, p.side, now, p.unrealized_pnl_usdt, gcfg.velocity_windows_min)
+
+        l2_cd = store.in_cooldown(scope, "regime_L2", now)
+        l3_cd = store.in_cooldown(scope, "regime_L3", now)
+        l4_cd = store.in_cooldown(scope, "regime_L4", now)
+
+        dec = evaluate_regime_guard(
+            gcfg, positions, equity, peak, day_open, btc24, btc6,
+            gs["dd_count"], uw, l2_cd, l3_cd, l4_cd, velocity=velocity, btc_ret_7d=btc7d)
+
+        macro_str = (f"btc24={btc24:+.1%}" if btc24 is not None else "btc24=NA") + \
+                    (f" btc6={btc6:+.1%}" if btc6 is not None else "") + \
+                    (f" btc7d={btc7d:+.1%}" if btc7d is not None else " btc7d=NA")
+        logger.info(f"[REGIME_GUARD {scope}] {tag}eq={equity:.0f} peak48h={peak:.0f} dd={dd_now:.1%} "
+                    f"dayopen={day_open:.0f} {macro_str} ddcount={gs['dd_count']} "
+                    f"closes_today={gs['closes_today']} fired={dec.fired}")
+
+        if not dec.fired:
+            return False
+
+        # ---- GUARDRAIL 2: daily cap (runaway backstop) ----
+        if gcfg.max_closes_per_day > 0 and gs["closes_today"] >= gcfg.max_closes_per_day:
+            logger.warning(f"[REGIME_GUARD {scope}] DAILY CAP reached ({gs['closes_today']}/"
+                           f"{gcfg.max_closes_per_day}) — would fire [{dec.layer}] but suppressed: {dec.reason}")
+            print(f"[REGIME_GUARD {scope}] DAILY CAP {gs['closes_today']}/{gcfg.max_closes_per_day} — "
+                  f"[{dec.layer}] suppressed")
+            return False
+
+        # per-layer re-fire cooldown (set even in log-only so the simulated cadence is realistic)
+        if dec.layer == "L2_peakdd":
+            store.try_set_cooldown(scope, "regime_L2", now + gcfg.l2_cooldown_min * 60)
+        elif dec.layer == "L3_cluster":
+            store.try_set_cooldown(scope, "regime_L3", now + gcfg.l3_cooldown_min * 60)
+        elif dec.layer == "L4_daily":
+            store.try_set_cooldown(scope, "regime_L4", ((now // 86400) + 1) * 86400)
+
+        execute_plan(dec.plan, dec.layer, dec.reason, dec.set_lock)
+        return True
+    except Exception as e:
+        logger.error(f"[REGIME_GUARD {scope}] error (swallowed): {e}")
+        print(f"[REGIME_GUARD ERROR] {scope}: {e}")
+        return False
+
 
 # ==============================================================================
 # SECTION 8: BACKTEST MODE
@@ -1675,6 +1894,10 @@ def run():
     pos_store = PositionStore(store.conn)
     trading_lock = TradingLock(cfg.trading_lock_file)
 
+    notifier: Optional[TelegramNotifier] = None
+    if cfg.telegram.enabled:
+        notifier = build_notifier(cfg.telegram.bot_token_env, cfg.telegram.chat_id_env)
+
     adapters = {}
     for name, c in cfg.exchanges.items():
         if c.enabled:
@@ -1691,7 +1914,8 @@ def run():
     engine = ActionEngine(store, adapters, cfg.dry_run, cfg.stables_keep, breaker,
                           stage_machine=stage_machine,
                           position_store=pos_store,
-                          trading_lock=trading_lock)
+                          trading_lock=trading_lock,
+                          notifier=notifier)
 
     mode_str = "DRY RUN" if cfg.dry_run else "LIVE"
     logger.info(f"{'='*60}")
@@ -1705,6 +1929,10 @@ def run():
     print(f"Exchanges: {list(adapters.keys())}")
     print(f"Poll: {cfg.poll_seconds}s | Lock: {cfg.trading_lock_file}")
     print(f"{'='*60}\n")
+    if notifier:
+        notifier.notify_startup(args.config, cfg.dry_run, list(adapters.keys()))
+
+    guard_state: dict = {}   # per-scope regime-guard state (dd persistence counter)
 
     while True:
         cycle_start = time.time()
@@ -1743,6 +1971,7 @@ def run():
                     store.append_snapshot(snap)
 
                     # Fetch and store position snapshots for attribution lookback
+                    pos_snaps: List[PositionSnapshot] = []
                     if scope.account == AccountType.FUTURES:
                         try:
                             pos_snaps = adapters[name].fetch_positions_as_snapshots(scope)
@@ -1754,9 +1983,18 @@ def run():
                     breaker.record_success(scope)
                     dds = dd_calc.compute(scope, snap.ts, acc_conf.windows)
 
+                    # Additive slow-bleed / cumulative-drawdown guard (runs before fast stages;
+                    # catches the grind-down the equity-spike stages never see).
+                    if (acc_conf.regime_guard and acc_conf.regime_guard.enabled
+                            and scope.account == AccountType.FUTURES and pos_snaps):
+                        _process_regime_guard(scope, acc_conf.regime_guard, snap, pos_snaps,
+                                              adapters[name], store, pos_store, trading_lock,
+                                              cfg.dry_run, logger, notifier, guard_state)
+
                     if acc_conf.has_stages:
                         _process_stage_triggers(scope, acc_conf, dds, snap,
-                                                engine, stage_machine, dd_calc, logger)
+                                                engine, stage_machine, dd_calc, logger,
+                                                notifier=notifier)
                     else:
                         # Legacy tier logic — still uses old is_derisked guard
                         if store.is_derisked(scope, snap.ts):

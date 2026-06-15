@@ -81,6 +81,37 @@ _futures_stages: &futures_stages
     set_trading_lock: true
     cooldown_min: 360
 
+# ──────────────────────────────────────────────────────────────────────────────
+# REGIME GUARD (v7.0) — slow-bleed / cumulative-drawdown protection.
+# Additive second contour: catches the slow grind the fast stages above never see.
+# Add this block UNDER a futures account (see config_bitget_futures_only.yaml for a
+# ready, working example). Ships in log_only:true — observe first, then flip to false.
+#
+#       regime_guard:
+#         enabled: true
+#         log_only: true              # observe-only: logs/TG "WOULD close X", executes nothing
+#         reentry_cooldown_min: 360   # re-close a flushed symbol if a bot re-opens it within 6h
+#         max_closes_per_day: 12      # runaway backstop
+#         l0_enabled: true
+#         max_loss_pct_equity: 0.08   # catastrophe cap: 1 position may not lose >8% of equity
+#         l1_enabled: false           # blanket per-margin stop OFF (don't override bot logic)
+#         l2_enabled: true
+#         peak_lookback_h: 48.0
+#         dd_trig: 0.05               # -5% from rolling 48h peak
+#         persist_cycles: 3
+#         l3_enabled: true
+#         cl_pct: 0.06                # each position <= -6% on margin
+#         cluster_k: 4                # >= 4 same-side losers = regime turned against the side
+#         l4_enabled: true
+#         dl_trig: 0.06               # -6% from UTC day-open
+#         up_gate: 0.025
+#         trend_gate_7d: 0.0          # L2/L3 only when macro is confirmed adverse for the side
+#         flush_block6: 0.03
+#         source_threshold: 0.55
+#         close_top_n: 3              # close the 3 fastest-bleeding losers
+#         velocity_windows_min: [15, 60, 240]
+# ──────────────────────────────────────────────────────────────────────────────
+
 # EXCHANGES
 exchanges:
 

@@ -1,5 +1,28 @@
 # Known Limitations
 
+## Regime Guard (v7.0) — honest caveats
+
+The Regime Guard is **risk insurance, not alpha**. Read these before trusting it with real execution.
+
+- **Validated on limited regimes.** The backtest replays one real account's history (a downtrend) plus
+  a *reconstructed* window containing a BTC uptrend. It is not validated across many years / many
+  regimes. The first 20–30 live closes are the real out-of-sample test — roll out via `log_only: true`
+  first.
+- **It pays an insurance premium in a pure bull.** Even with the adverse-macro gate, in a strong uptrend
+  it can occasionally cut a position that then recovers (a "false cut"). The trade-off
+  protection ⇄ false-cuts is irreducible; the gate minimises it but cannot remove it.
+- **Close-only + no lock can fight your bots.** The guard closes a position; your bot may re-open it on
+  its next signal → churn. The `reentry_cooldown_min` guardrail mitigates this (it re-closes a
+  re-appeared symbol), but the cleanest fix is for your bots to also honour the trading-lock file.
+- **Execution on thin alts.** The guard sends reduce-only market orders; on illiquid names during
+  stress, fills can slip well past the last mark. Size and venue matter.
+- **Cross-margin makes liquidation-distance useless** as a signal — that is why L0 keys on
+  *loss-as-%-of-equity*, not proximity to the (account-backed) liquidation price.
+- **`log_only` is observe-only by design.** While `log_only: true`, the guard never executes — do not
+  expect protection until you flip it to `false`.
+
+---
+
 ## Spot Multi-Hop Routing — Pre-existing BTC/ETH
 
 ### Status: RESOLVED in v6.0
@@ -41,15 +64,11 @@ If the process just started (no historical snapshots in SQLite), the reference i
 
 ---
 
-## Extended Tests — 3 Known Pre-existing Failures
+## Test Suite
 
-`tests/test_extended.py` has 3 tests that fail due to design choices predating v6.0:
-
-- `test_is_confirmed_with_recovery_in_middle`: expects spike-sensitive confirmation; `is_confirmed` uses HWM-based logic that ignores mid-window recoveries by design.
-- `test_multiple_scopes_isolation`: coincidental equal DD% across scopes in test data.
-- `test_flash_crash_scenario`: timing edge case in seeded snapshot data.
-
-These do not affect production behavior. The 57 new tests in `test_attribution.py`, `test_stage_machine.py`, and `test_integration.py` cover all new functionality.
+As of v7.0 the full suite is green: **`python3 -m pytest tests/ -v` → 130+ passed, 0 failed**
+(including `test_extended.py`, `test_regime_guard.py`, and `test_guardrails.py`). Verify all pass in
+your own environment before trusting results.
 
 ---
 

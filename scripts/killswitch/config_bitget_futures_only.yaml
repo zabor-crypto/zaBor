@@ -17,6 +17,15 @@ dry_run: true                                    # ⚠️ MUST be true until val
 stables_keep: ["USDT", "USDC"]
 trading_lock_file: "./killswitch_trading_lock.json"
 
+# TELEGRAM NOTIFICATIONS
+# Provide the names of the environment variables holding the token and chat_id.
+# The values themselves live in your .env file on the server, not here.
+notifications:
+  telegram:
+    enabled: true
+    bot_token_env: "TELEGRAM_BOT_TOKEN"
+    chat_id_env: "TELEGRAM_CHAT_ID"
+
 # Spot routing not used (futures only), safe defaults left in place
 spot_routing:
   sell_intermediate_delta_only: true
@@ -35,7 +44,7 @@ exchanges:
     enabled: true
     api_key_env: "BITGET_API_KEY"
     api_secret_env: "BITGET_API_SECRET"
-    password_env: "BITGET_PASSWORD"             # Bitget requires passphrase
+    password_env: "BITGET_PASSWORD"             # Bitget requires a passphrase
     accounts:
 
       futures:
@@ -48,19 +57,19 @@ exchanges:
           thresholds:
             "15m": 0.045    # -4.5% in 15 minutes
             "1h":  0.070    # -7.0% in 1 hour
-          confirm_consecutive: 3    # 3 consecutive polls must confirm drawdown
+          confirm_consecutive: 3    # 3 consecutive polls must confirm the drawdown
           mode: "CLOSE_TOP_RISK_CONTRIBUTORS"
           source_mode: "AUTO"       # auto-detect whether longs or shorts are responsible
-          source_threshold: 0.65    # one side must account for ≥65% of losses
-          top_n: 3                  # close top 3 by risk score
-          close_fraction: 0.50      # close 50% of each position
+          source_threshold: 0.65    # one side must account for ≥65% of the loss
+          top_n: 3                  # close the 3 riskiest positions
+          close_fraction: 0.50      # close 50% of each
           full_close_if_liq_distance_below_pct: 0.03  # full close if <3% from liquidation
           cancel_entry_orders_before_close: true
           set_trading_lock: true
           cooldown_min: 30          # no repeat within 30 min
 
         stage_2:
-          # Stage 2: close all positions on the dominant losing side
+          # Stage 2: close all positions on the losing side
           thresholds:
             "15m": 0.070
             "1h":  0.100
@@ -73,7 +82,7 @@ exchanges:
           cooldown_min: 90
 
         stage_3:
-          # Stage 3: full stop — cancel all orders, close all positions
+          # Stage 3: full stop — cancel orders, close everything
           thresholds:
             "15m": 0.100
             "1h":  0.140
@@ -81,7 +90,77 @@ exchanges:
           mode: "CLOSE_ALL_POSITIONS"
           cancel_entry_orders_before_close: true
           set_trading_lock: true
-          cooldown_min: 360         # 6 hours, requires manual removal
+          cooldown_min: 360         # 6h, cleared manually
+
+        # ──────────────────────────────────────────────────────────────
+        # REGIME GUARD — portfolio-level regime protection, NOT a per-trade stop.
+        # Philosophy: every position is opened by a bot with its own optimised
+        # logic and stops. The kill-switch does NOT impose a blanket per-trade
+        # stop — it detects that the MARKET REGIME has turned against the book
+        # and closes the positions unfavourable FOR THAT REGIME.
+        # Validated by counterfactual replay of a real account's 60s history:
+        # MDD reduced by roughly half; positive/neutral across up / chop / down
+        # regimes; survives a 3× cost stress. close-only, no trading-lock.
+        # ──────────────────────────────────────────────────────────────
+        regime_guard:
+          enabled: true
+          # ── DEPLOY GUARDRAILS ──
+          log_only: true            # ⚠️ OBSERVE-ONLY: the guard only logs + Telegrams "WOULD close X",
+                                    # it does NOT execute (fast stages keep their own dry_run). Disable
+                                    # after 3–5 days of observing real triggers.
+          reentry_cooldown_min: 360 # after closing (symbol,side): if a bot re-opens it within 6h,
+                                    # close it again (stops the guard fighting the bots). 0 = off.
+          max_closes_per_day: 12    # cap guard-initiated closes per UTC day (runaway backstop). 0 = off.
+          # L0 — single-position CATASTROPHE cap (ON). Not a per-trade stop, but account-level
+          # concentration protection: no single position may cost more than X% of equity. Catches an
+          # idiosyncratic pump (e.g. market-makers squeezing a coin against a short) that the regime
+          # triggers L2/L3/L4 miss (1-2 names, not a cluster, masked by the portfolio).
+          # In replay it would fire ~1 in 180 positions, capping that one position and never touching
+          # normal trades. Regime-agnostic, every 60s (faster than a daily-close stop).
+          l0_enabled: true
+          max_loss_pct_equity: 0.08
+          l1_enabled: false         # per-position blanket MARGIN stop OFF (don't override bot logic)
+          # L2 — portfolio drawdown from a rolling peak (regime trigger)
+          l2_enabled: true
+          peak_lookback_h: 48.0
+          dd_trig: 0.05             # −5% from the 48h peak
+          persist_cycles: 3         # confirm over N consecutive cycles (not a spike)
+          l2_cooldown_min: 720      # 12h between L2 fires
+          l2_lock: false            # close-only, no bot lock
+          # L3 — correlated cluster: ≥K same-side positions ALL losing
+          #      = the regime turned against that side (a single position is left alone)
+          l3_enabled: true
+          cl_pct: 0.06              # each position worse than −6% on margin
+          cluster_k: 4              # ≥4 positions on one side
+          l3_cooldown_min: 480      # 8h
+          # L4 — portfolio daily loss limit
+          l4_enabled: true
+          dl_trig: 0.06             # −6% from the UTC day-open
+          l4_lock: false
+          # min_loss_floor: 0.0     # min position loss (on MARGIN) to qualify for an L2/L4 flush.
+                                    # 0 = any loss (validated default). A small value (e.g. 0.03 ≈
+                                    # −0.3% price at 10×) skips "flat" positions; a LARGE threshold
+                                    # WEAKENS downtrend protection. The velocity selector already
+                                    # avoids stable positions — keep at 0 or small. L3 has its own
+                                    # cl_pct threshold (−6% margin); L0 is the 8%-equity cap.
+          # POSITION SELECTION on trigger: close the N fastest-bleeding positions
+          # (blended drawdown velocity over 15m+1h+4h). Validated as the best
+          # selector vs close-all and vs largest-loss, and robust under 3× cost.
+          close_top_n: 3            # 0 = close ALL losers on the side
+          velocity_windows_min: [15, 60, 240]
+          # Regime gates (BTC as the macro driver). MIRRORED per side: a side is cut
+          # only when the macro is against it (it will not recover):
+          #   longs — when BTC 7d < 0 (falling);  shorts — when BTC 7d > 0 (rising).
+          up_gate: 0.025            # don't flush L2/L3 into a sharp spike that favours the side's
+                                    # recovery (longs: BTC 24h > +2.5%; shorts: BTC 24h < −2.5%)
+          trend_gate_7d: 0.0        # L2/L3 fire only under a confirmed adverse trend FOR THE SIDE
+                                    # (signed BTC 7d < 0). A slow bull trend is indistinguishable from
+                                    # chop on daily returns, so the 24h gate misses it and the guard
+                                    # would otherwise cut dips the uptrend later recovers. L4 (daily
+                                    # −6%) is NOT trend-gated. The short mirror is validated by logic
+                                    # and tests.
+          flush_block6: 0.03        # don't flush L2 during an acute sell-off (BTC 6h ≤ −3%)
+          source_threshold: 0.55    # dominant side ≥55% of the open loss
 
       spot:
         enabled: false              # spot not used
