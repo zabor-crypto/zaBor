@@ -1,6 +1,6 @@
 # Versions are pinned exactly so parquet/CSV outputs are byte-identical
 # across runs on the same Python version. Bump deliberately.
-aiohttp==3.9.5
+aiohttp==3.14.1
 httpx==0.27.0
 pandas==2.2.2
 numpy==1.26.4
