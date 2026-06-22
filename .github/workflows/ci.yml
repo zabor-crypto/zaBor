@@ -37,21 +37,13 @@ jobs:
             ruff>=0.6 \
             types-PyYAML
 
+      # scripts/* are self-contained projects with their own deps — excluded wholesale
+      # from shared CI (see CLAUDE.md). Do not lint/typecheck/test them here.
       - name: Lint
-        run: |
-          python -m ruff check . \
-            --exclude scripts/killswitch \
-            --exclude scripts/funding_arb_research \
-            --exclude scripts/lighter_mm \
-            --exclude scripts/alt_4h_scanner
+        run: python -m ruff check . --exclude scripts
 
       - name: Typecheck
-        run: |
-          python -m mypy . \
-            --exclude scripts/killswitch \
-            --exclude scripts/funding_arb_research \
-            --exclude scripts/lighter_mm \
-            --exclude scripts/alt_4h_scanner
+        run: python -m mypy . --exclude 'scripts/'
 
       - name: Tests
         run: python -m pytest -q --ignore=scripts
