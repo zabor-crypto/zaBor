@@ -6,6 +6,8 @@ It is **not a strategy**. It makes no trade calls, gives no advice, and does not
 
 > Built from a research-validated state model. Every formula is **causal and trailing-only**; higher-timeframe context uses **confirmed candles only** (non-repainting by design).
 
+![Crypto Context Dashboard on BTCUSDT 4H](screenshot.png)
+
 ---
 
 ## What it shows
