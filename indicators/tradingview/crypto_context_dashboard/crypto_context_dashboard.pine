@@ -1,0 +1,243 @@
+//@version=6
+// Crypto Context Dashboard v2
+// Visual-only present-state context panel.
+// v2 uses the simplified "Market Lens" UI by default.
+// Beginner mode shows Main / Summary / Tags / Changed.
+// Trader and Full modes expose more detail.
+// Not a strategy. No orders. No trade calls. Not forecasting.
+// Formulas remain causal and trailing-only; HTF context uses confirmed candles only.
+
+indicator("Crypto Context Dashboard v2", overlay = true, max_labels_count = 25)
+
+// ============================ Inputs ============================
+// v2 "Market Lens" UI: a simple card by default; advanced detail behind UI Mode.
+showTable     = input.bool(true,  "Show table")
+uiMode        = input.string("Beginner", "UI Mode", options = ["Beginner", "Trader", "Full"])
+markerMode    = input.string("Off",  "Context markers", options = ["Off", "Dots", "Labels"])
+markerHistory = input.string("Latest only", "Marker history", options = ["Latest only", "Recent changes"])
+showStrip     = input.bool(false, "Show context strip")
+showBg        = input.bool(false, "Show background")
+emaLen      = input.int(50,  "EMA length",            minval = 1)
+atrLen      = input.int(14,  "ATR length",            minval = 1)
+percLB      = input.int(200, "Percentile lookback",   minval = 10)
+bbLen       = input.int(20,  "BB length",             minval = 1)
+bbMult      = input.float(2.0, "BB multiplier",       minval = 0.1, step = 0.1)
+noiseLen    = input.int(10,  "Noise lookback",        minval = 3)
+htfTF       = input.timeframe("1D", "HTF timeframe")
+htfEmaLen   = input.int(20,  "HTF EMA length",        minval = 1)
+
+// Fixed structural constants (not exposed as knobs)
+SLOPE_LEN = 5
+eps       = 1e-9
+
+// ============================ Primitives ============================
+atrV   = ta.atr(atrLen)
+ema    = ta.ema(close, emaLen)
+
+// ---- 3.1 Volatility State ----
+atrPct = ta.percentrank(atrV, percLB)
+basis  = ta.sma(close, bbLen)
+dev    = bbMult * ta.stdev(close, bbLen)
+bbWidth = (basis + dev - (basis - dev)) / close
+bbwPct = ta.percentrank(bbWidth, percLB)
+
+volLow  = atrPct <= 25 and bbwPct <= 25
+volHigh = atrPct >= 75 or  bbwPct >= 75
+volStr  = volLow ? "LOW_VOL" : volHigh ? "HIGH_VOL" : "NORMAL_VOL"
+volCode = volLow ? 1 : volHigh ? 2 : 0
+
+// ---- 3.2 Extension From Mean ----
+emaDistAtr = (close - ema) / atrV
+extStr = emaDistAtr >= 2.5 ? "VERY_EXTENDED_UP" : emaDistAtr >= 2.0 ? "EXTENDED_UP" : emaDistAtr <= -2.5 ? "VERY_EXTENDED_DOWN" : emaDistAtr <= -2.0 ? "EXTENDED_DOWN" : "NORMAL"
+extNormal = extStr == "NORMAL"
+extCode = extStr == "NORMAL" ? 0 : extStr == "EXTENDED_UP" ? 1 : extStr == "VERY_EXTENDED_UP" ? 2 : extStr == "EXTENDED_DOWN" ? 3 : 4
+
+// ---- 3.3 Noise / Candle Quality (trailing-only) ----
+rng       = high - low
+bodyRatio = math.abs(close - open) / math.max(rng, eps)
+wickRatio = ((high - math.max(open, close)) + (math.min(open, close) - low)) / math.max(rng, eps)
+
+// A: median wick ratio over trailing window
+wickNoise = ta.percentile_nearest_rank(wickRatio, noiseLen, 50)
+// C: alternation rate over trailing window
+flips = 0
+pairs = 0
+for k = 0 to noiseLen - 2
+    d0 = math.sign(close[k] - open[k])
+    d1 = math.sign(close[k + 1] - open[k + 1])
+    if d0 != 0 and d1 != 0
+        pairs += 1
+        if d0 != d1
+            flips += 1
+altRate = pairs > 0 ? flips / pairs : 0.0
+// D: efficiency ratio over trailing window
+num = math.abs(close - close[noiseLen - 1])
+den = 0.0
+for k = 0 to noiseLen - 2
+    den += math.abs(close[k] - close[k + 1])
+effRatio = den > 0 ? num / den : 0.0
+// B: fraction of small-body / large-range candles over trailing window
+sblrCnt = 0
+for k = 0 to noiseLen - 1
+    br = math.abs(close[k] - open[k]) / math.max(high[k] - low[k], eps)
+    rr = (high[k] - low[k]) / atrV[k]
+    if br <= 0.35 and rr >= 0.75
+        sblrCnt += 1
+sblrFrac = sblrCnt / noiseLen
+// E: range instability vs its own trailing 70th percentile (historical)
+rangeInstab = ta.stdev(rng / atrV, noiseLen)
+riqPct = ta.percentrank(rangeInstab, percLB)
+
+condA = wickNoise   >= 0.55
+condB = sblrFrac    >= 0.40
+condC = altRate     >= 0.55
+condD = effRatio    <= 0.35
+condE = riqPct      >= 70
+noiseCount = (condA ? 1 : 0) + (condB ? 1 : 0) + (condC ? 1 : 0) + (condD ? 1 : 0) + (condE ? 1 : 0)
+noiseStr  = noiseCount >= 3 ? "CHOPPY" : noiseCount == 2 ? "MIXED" : "CLEAN"
+noiseCode = noiseCount >= 3 ? 2 : noiseCount == 2 ? 1 : 0
+isWicky       = condA
+isInefficient = condD
+
+// ---- 3.4 Trend Context ----
+emaSlope = ema - ema[SLOPE_LEN]
+trendStr = close > ema and emaSlope > 0 ? "UP_CONTEXT" : close < ema and emaSlope < 0 ? "DOWN_CONTEXT" : "MIXED_CONTEXT"
+trendCode = trendStr == "UP_CONTEXT" ? 1 : trendStr == "DOWN_CONTEXT" ? 2 : 0
+
+// ---- 3.5 MTF Context (non-repainting: confirmed HTF only) ----
+// Read PREVIOUS confirmed HTF values with lookahead disabled so an intrabar LTF
+// bar never sees the current incomplete HTF candle.
+htfEmaSeries = ta.ema(close, htfEmaLen)
+htfClose   = request.security(syminfo.tickerid, htfTF, close[1],            lookahead = barmerge.lookahead_off)
+htfEma     = request.security(syminfo.tickerid, htfTF, htfEmaSeries[1],     lookahead = barmerge.lookahead_off)
+htfEmaPrev = request.security(syminfo.tickerid, htfTF, htfEmaSeries[2],     lookahead = barmerge.lookahead_off)
+htfSlope = htfEma - htfEmaPrev
+htfUp   = htfClose > htfEma and htfSlope > 0
+htfDown = htfClose < htfEma and htfSlope < 0
+htfStr  = htfUp ? "HTF_UP" : htfDown ? "HTF_DOWN" : "HTF_MIXED"
+
+ltfUp   = trendStr == "UP_CONTEXT"
+ltfDown = trendStr == "DOWN_CONTEXT"
+mtfStr = ltfUp and htfUp ? "ALIGNED_UP" : ltfDown and htfDown ? "ALIGNED_DOWN" : ltfUp and htfDown ? "CONFLICT_UP" : ltfDown and htfUp ? "CONFLICT_DOWN" : "MIXED"
+isMtfConflict = mtfStr == "CONFLICT_UP" or mtfStr == "CONFLICT_DOWN"
+isMtfAligned  = mtfStr == "ALIGNED_UP" or mtfStr == "ALIGNED_DOWN"
+mtfCode = isMtfConflict ? 2 : isMtfAligned ? 1 : 0
+
+// ============================ 4. Final Dashboard State ============================
+// Display-priority grouping only (descriptive present-state, not a trade call).
+finalStr = isMtfConflict ? "MTF_CONFLICT_CONTEXT" : noiseStr == "CHOPPY" ? "CHOPPY_CONTEXT" : not extNormal ? "EXTENDED_CONTEXT" : volLow ? "LOW_VOL_CONTEXT" : volHigh ? "HIGH_VOL_CONTEXT" : ltfUp ? "CLEAN_UP_CONTEXT" : ltfDown ? "CLEAN_DOWN_CONTEXT" : "MIXED_CONTEXT"
+finalCode = isMtfConflict ? 0 : noiseStr == "CHOPPY" ? 1 : not extNormal ? 2 : volLow ? 3 : volHigh ? 4 : ltfUp ? 5 : ltfDown ? 6 : 7
+
+// ============================ 5. Human-readable display text ============================
+// Internal enum codes above are unchanged; these strings are user-facing only.
+finalDisp = finalStr == "MTF_CONFLICT_CONTEXT" ? "MTF Conflict Context" : finalStr == "CHOPPY_CONTEXT" ? "Choppy Context" : finalStr == "EXTENDED_CONTEXT" ? "Extended Context" : finalStr == "LOW_VOL_CONTEXT" ? "Low Vol Context" : finalStr == "HIGH_VOL_CONTEXT" ? "High Vol Context" : finalStr == "CLEAN_UP_CONTEXT" ? "Clean Up Context" : finalStr == "CLEAN_DOWN_CONTEXT" ? "Clean Down Context" : "Mixed Context"
+
+trendDisp = trendStr == "UP_CONTEXT" ? "Up" : trendStr == "DOWN_CONTEXT" ? "Down" : "Mixed"
+mtfDisp   = isMtfConflict ? "Conflict" : isMtfAligned ? "Aligned" : "Mixed"
+volDisp   = volLow ? "Low" : volHigh ? "High" : "Normal"
+extDisp   = extStr == "VERY_EXTENDED_UP" ? "Very Extended Up" : extStr == "EXTENDED_UP" ? "Extended Up" : extStr == "VERY_EXTENDED_DOWN" ? "Very Extended Down" : extStr == "EXTENDED_DOWN" ? "Extended Down" : "Normal"
+noiseBase = noiseStr == "CHOPPY" ? "Choppy" : noiseStr == "MIXED" ? "Mixed" : "Clean"
+noiseDisp = noiseBase + (isWicky ? " · Wicky" : "") + (isInefficient ? " · Inefficient" : "")
+
+// Compact neutral component tokens (used by the Tags row).
+trendTok = ltfUp ? "Trend Up" : ltfDown ? "Trend Down" : "Mixed Trend"
+mtfTok   = isMtfAligned ? "MTF Aligned" : isMtfConflict ? "MTF Conflict" : "MTF Mixed"
+volTok   = volLow ? "Low Vol" : volHigh ? "High Vol" : "Normal Vol"
+
+// ---- v2 Market Lens display text (simplified, user-facing) ----
+// Main: simplified plain-language label for the present-state context.
+mainDisp = finalStr == "LOW_VOL_CONTEXT" ? "Quiet + Mixed" : finalStr == "HIGH_VOL_CONTEXT" ? "Active" : finalStr == "EXTENDED_CONTEXT" ? "Stretched" : finalStr == "CHOPPY_CONTEXT" ? "Noisy + Mixed" : finalStr == "MTF_CONFLICT_CONTEXT" ? "Timeframe Conflict" : finalStr == "CLEAN_UP_CONTEXT" ? "Up Context" : finalStr == "CLEAN_DOWN_CONTEXT" ? "Down Context" : "Mixed"
+// Summary: one brief neutral line. Present-state only.
+summaryStr = finalStr == "LOW_VOL_CONTEXT" ? "Low-volatility chart, unclear direction." : finalStr == "HIGH_VOL_CONTEXT" ? "Elevated volatility, present-state only." : finalStr == "EXTENDED_CONTEXT" ? "Price is far from EMA, present-state only." : finalStr == "CHOPPY_CONTEXT" ? "Noisy recent candles, unclear direction." : finalStr == "MTF_CONFLICT_CONTEXT" ? "Lower and higher timeframe differ." : finalStr == "CLEAN_UP_CONTEXT" ? "Chart context points upward." : finalStr == "CLEAN_DOWN_CONTEXT" ? "Chart context points downward." : "Mixed chart context."
+// Tags: up to 3 compact neutral tags summarizing the detail rows.
+tagsStr = mtfTok + " · " + trendTok + " · " + volTok
+
+// Compact two-letter code for chart markers (display-only).
+codeStr = finalStr == "LOW_VOL_CONTEXT" ? "LV" : finalStr == "HIGH_VOL_CONTEXT" ? "HV" : finalStr == "EXTENDED_CONTEXT" ? "EX" : finalStr == "CHOPPY_CONTEXT" ? "CH" : finalStr == "MTF_CONFLICT_CONTEXT" ? "MC" : finalStr == "CLEAN_UP_CONTEXT" ? "UP" : finalStr == "CLEAN_DOWN_CONTEXT" ? "DN" : "MX"
+
+// Last Change tracking: remember the display label we changed FROM and the bar of change.
+isChange = barstate.isconfirmed and not na(finalCode[1]) and finalCode != finalCode[1]
+var string fromDisp  = na
+var int    changeBar = na
+if isChange
+    fromDisp  := finalDisp[1]
+    changeBar := bar_index
+barsAgo = na(changeBar) ? na : bar_index - changeBar
+agoStr  = na(barsAgo) ? "" : barsAgo <= 0 ? " · now" : " · " + str.tostring(barsAgo) + (barsAgo == 1 ? " bar ago" : " bars ago")
+// Trader/Full: full previous → current transition. Beginner: simplified.
+lastChangeStr   = na(fromDisp) ? "Initializing" : fromDisp + " → " + finalDisp + agoStr
+changedSimpleStr = na(fromDisp) ? "Initializing" : barsAgo <= 0 ? "Changed: now" : "Changed: " + str.tostring(barsAgo) + (barsAgo == 1 ? " bar ago" : " bars ago")
+
+// Muted category color per final state (no green/red directional color coding).
+stateHue = finalStr == "LOW_VOL_CONTEXT" ? color.blue : finalStr == "HIGH_VOL_CONTEXT" ? color.purple : finalStr == "EXTENDED_CONTEXT" ? color.orange : finalStr == "CHOPPY_CONTEXT" ? color.gray : finalStr == "MTF_CONFLICT_CONTEXT" ? color.rgb(71, 85, 105) : finalStr == "CLEAN_UP_CONTEXT" ? color.teal : finalStr == "CLEAN_DOWN_CONTEXT" ? color.navy : color.gray
+
+// ============================ 6. Visual Layout ============================
+// Full background: muted category color, very transparent (>=92), off by default.
+cBg = color.new(stateHue, 93)
+bgcolor(showBg ? cBg : na, title = "Context background")
+
+// Context strip: subtle per-bar trace at the bottom of the pane (no full-height fill).
+plotchar(showStrip ? 0 : na, title = "Context strip", char = "•", location = location.bottom, color = color.new(stateHue, 35), size = size.tiny)
+
+// ---- Market Lens table (title / Main / Summary / Tags / Changed / optional detail) ----
+txtCol  = chart.fg_color
+titleBg = color.new(color.gray, 78)
+mainBg  = color.new(color.gray, 86)
+
+var table dash = table.new(position.top_right, 2, 11, frame_color = color.new(color.gray, 70), frame_width = 1, border_color = color.new(color.gray, 82), border_width = 1)
+
+f_title(int r) =>
+    table.cell(dash, 0, r, "Market Lens", text_color = txtCol, text_size = size.normal, text_halign = text.align_left, bgcolor = titleBg)
+    table.cell(dash, 1, r, "", bgcolor = titleBg)
+
+// weight: 2 = Main (largest), 1 = secondary card row, 0 = detail row
+f_cell(int r, string k, string v, int weight) =>
+    bgc = weight >= 1 ? mainBg : color.new(color.gray, 100)
+    sz  = weight == 2 ? size.large : weight == 1 ? size.normal : size.small
+    table.cell(dash, 0, r, k, text_color = txtCol, text_size = sz, text_halign = text.align_left,  bgcolor = bgc)
+    table.cell(dash, 1, r, v, text_color = txtCol, text_size = sz, text_halign = text.align_right, bgcolor = bgc)
+
+if showTable and barstate.islast
+    table.clear(dash, 0, 0, 1, 10)
+    f_title(0)
+    // Card rows shared by every mode.
+    f_cell(1, "Main",    mainDisp,    2)
+    f_cell(2, "Summary", summaryStr,  1)
+    f_cell(3, "Tags",    tagsStr,     1)
+    if uiMode == "Beginner"
+        f_cell(4, "Changed", changedSimpleStr, 1)
+    else if uiMode == "Full"
+        f_cell(4, "Changed",        lastChangeStr, 1)
+        f_cell(5, "Trend",          trendDisp,     0)
+        f_cell(6, "MTF",            mtfDisp,       0)
+        f_cell(7, "Volatility",     volDisp,       0)
+        f_cell(8, "Extension",      extDisp,       0)
+        f_cell(9, "Noise",          noiseDisp,     0)
+        f_cell(10, "Internal State", finalStr,     0)
+    else
+        f_cell(4, "Changed",    lastChangeStr, 1)
+        f_cell(5, "Trend",      trendDisp,     0)
+        f_cell(6, "MTF",        mtfDisp,       0)
+        f_cell(7, "Volatility", volDisp,       0)
+
+// When the table is toggled off, clear any previously drawn cells so it disappears.
+if not showTable and barstate.islast
+    table.clear(dash, 0, 0, 1, 10)
+
+// ---- Optional compact context-change markers (neutral, no arrows) ----
+// Dots: compact two-letter code only. Labels: brief "Context → <state>" text. No drivers.
+// "Latest only" keeps a single marker; "Recent changes" keeps history (capped at 25).
+var label lastMk = na
+if (markerMode == "Dots" or markerMode == "Labels") and isChange
+    if markerHistory == "Latest only" and not na(lastMk)
+        label.delete(lastMk)
+    mkTxt = markerMode == "Dots" ? codeStr : "Context → " + finalDisp
+    mkSz  = markerMode == "Dots" ? size.tiny : size.small
+    lastMk := label.new(bar_index, high, mkTxt, style = label.style_none, textcolor = txtCol, size = mkSz)
+
+// ============================ 7. Alerts (neutral, state-change only) ============================
+alertcondition(finalCode != finalCode[1], "State changed",            "Crypto Context Dashboard: context state changed")
+alertcondition(mtfCode   != mtfCode[1],   "MTF context changed",      "Crypto Context Dashboard: MTF context changed")
+alertcondition(volCode   != volCode[1],   "Volatility state changed", "Crypto Context Dashboard: volatility state changed")
+alertcondition(extCode   != extCode[1],   "Extension state changed",  "Crypto Context Dashboard: extension state changed")
+alertcondition(noiseCode != noiseCode[1], "Noise state changed",      "Crypto Context Dashboard: noise state changed")

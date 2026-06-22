@@ -32,7 +32,7 @@ Default mode is **`dry_run: true`**. You are responsible for:
 | [`scripts/liquidation_signal_research/`](scripts/liquidation_signal_research/) | Binance liquidation cascade signal — event-sourced paper-trading pipeline, microstructure features, 22K paper trade validation. Research in progress. |
 | [`scripts/lighter_mm/`](scripts/lighter_mm/) | Market-making strategy simulator for Lighter.xyz DEX — spread quoting, inventory skew, toxicity filter, walk-forward optimization |
 | [`exchanges/bitget/`](exchanges/bitget/) | Typed Bitget REST client adapter (order lifecycle, credentials, retries) |
-| [`indicators/tradingview/`](indicators/tradingview/) | Pine Script indicators for TradingView signal prototyping |
+| [`indicators/tradingview/`](indicators/tradingview/) | Pine Script indicators — entry-signal overlay + visual market-context dashboard |
 | [`configs/`](configs/) | YAML config templates |
 
 ---
@@ -121,6 +121,13 @@ Pine Script indicators for signal research and visual chart validation.
 - Stochastic reversal trigger with cooldown anti-spam
 
 → See [`indicators/tradingview/zaBor_RSI_AO_Stoch_Entry_System/README.md`](indicators/tradingview/zaBor_RSI_AO_Stoch_Entry_System/README.md)
+
+**Crypto Context Dashboard** — visual present-state context panel (not a strategy):
+- Trend / MTF agreement / volatility / extension / candle-noise context in a compact table
+- Causal, trailing-only formulas; non-repainting higher-timeframe context
+- Descriptive only — no trade calls, no forecasts; neutral state-change alerts
+
+→ See [`indicators/tradingview/crypto_context_dashboard/README.md`](indicators/tradingview/crypto_context_dashboard/README.md)
 
 ---
 
