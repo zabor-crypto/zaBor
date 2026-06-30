@@ -1,0 +1,7 @@
+python-binance>=1.0.19
+aiohttp>=3.9
+apscheduler>=3.10
+tenacity>=8.2
+requests>=2.31
+numpy>=1.26
+pandas>=2.2

@@ -26,6 +26,7 @@ Default mode is **`dry_run: true`**. You are responsible for:
 | Path | Description |
 |------|-------------|
 | [`scripts/alt_4h_scanner/`](scripts/alt_4h_scanner/) | Binance spot scanner — 4H accumulation breakout detection with 9-filter stack, computes structured limit-order levels for pullback entries |
+| [`scripts/alt_4h_reversal_scanner/`](scripts/alt_4h_reversal_scanner/) | Binance/Bitget perps scanner — 4H LONG reversal detection with three independent detectors (squeeze breakout, failed breakdown, sweep reclaim), filter stack, MTF 1H confirmation, and regime-adaptive R-multiple TP ladders |
 | [`scripts/killswitch/`](scripts/killswitch/) | Emergency risk management system v7.0 — PnL attribution + staged closure plus a portfolio-level Regime Guard for slow-bleed drawdowns, Binance/Bybit/Bitget, 139 tests |
 | [`scripts/funding_arb_research/`](scripts/funding_arb_research/) | Funding rate arbitrage research stack — async collectors for 6 venues, strategy-agnostic backtest engine, 8 strategies evaluated |
 | [`scripts/long_gate_orchestrator/`](scripts/long_gate_orchestrator/) | Causal regime-gating layer for swing-long strategies — enable in favorable regimes, suppress the downtrend tail; shared regime panel + per-strategy thresholds, full WFO/placebo validation battery |
@@ -108,6 +109,25 @@ python mm_sim.py --data data/sol_1m_sample.csv --walk-forward
 ```
 
 → See [`scripts/lighter_mm/README.md`](scripts/lighter_mm/README.md)
+
+---
+
+### ALT 4H Reversal Scanner (`scripts/alt_4h_reversal_scanner/`)
+
+LONG-only 4H reversal scanner for USDT-M perpetuals (Binance ∩ Bitget). Three independent, orthogonal detectors fire under a common parent tag and a multi-stage filter stack, each with its own R-multiple take-profit ladder and a 2H-close stop.
+
+**Detectors:** squeeze breakout · failed breakdown · sweep reclaim
+**Filter stack:** RSI context · 4H ATR% volatility floor · liquidity-cohort filter · day/hour blacklist · 1H MTF confirmation · optional BTC-regime gate
+**Backtest (honest):** raw detection edge PF ~1.26 across 556 signals over 80 days (squeeze the strongest at 1.63); with the full exit-management stack — not in this repo — rolling walk-forward reads PF 1.92 IS / 2.56 med OOS, realistic-close 1.53–1.85, regime-conditional. Signal-generation only.
+
+```bash
+cd scripts/alt_4h_reversal_scanner
+pip install -r requirements.txt
+cp .env.example .env   # optional — runs and logs without keys
+python signal_bot.py
+```
+
+→ See [`scripts/alt_4h_reversal_scanner/README.md`](scripts/alt_4h_reversal_scanner/README.md)
 
 ---
 

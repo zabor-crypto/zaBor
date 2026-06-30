@@ -1,0 +1,28 @@
+# Secrets / env
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Runtime artifacts (signals, state, logs — never publish)
+*.log
+*.jsonl
+*.pid
+sent_signals.json
+mtf_pending_signals.json
+market_state.json
+global_signals.csv
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
