@@ -1,0 +1,11 @@
+[Unit]
+Description=hl-mm universe rotation daily (low-activity UTC hour)
+
+[Timer]
+# 08:20 UTC daily — quiet window; only restarts the recorder if the universe
+# actually changed and >= min_hours_between_restarts have elapsed.
+OnCalendar=*-*-* 08:20:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

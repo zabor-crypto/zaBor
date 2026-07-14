@@ -1,0 +1,43 @@
+{
+  "_comment": "hl-mm-recorder universe rotation policy. Edited by operator; consumed by hl_universe_manager.py. HL SPOT dayNtlVlm is a proven-useless selection signal (2026-07-04: @109 WOW/USDC reported $68M vol yet ticked BBO 10x/18h = dead; @107 HYPE/USDC reports $27 vol yet is the most active spot book). So spot is NEVER auto-added by volume. Observed BBO/trade activity from the recorder's own health.json is the authoritative signal for REMOVAL of any coin. Perp dayNtlVlm is real and usable for probe-confirmed ADDS.",
+  "pinned_core": [
+    "BTC",
+    "ETH",
+    "SOL",
+    "HYPE",
+    "XRP",
+    "DOGE",
+    "SUI",
+    "ZEC",
+    "AVAX",
+    "LINK",
+    "PURR/USDC",
+    "@107"
+  ],
+  "target_size": 20,
+  "max_size": 28,
+  "activity": {
+    "min_uptime_h": 6.0,
+    "bbo_floor_per_hr": 30.0,
+    "trade_floor_per_hr": 5.0,
+    "keep_rule": "OR",
+    "hard_dead_bbo_per_hr": 2.0,
+    "hard_dead_trade_per_hr": 2.0,
+    "dead_evals_to_remove": 2
+  },
+  "add": {
+    "enable_perp_add": false,
+    "enable_spot_probe_add": false,
+    "perp_candidate_pool": 30,
+    "spot_candidate_pool": 0,
+    "probe_seconds": 90,
+    "probe_bbo_min": 30,
+    "probe_trade_min": 0
+  },
+  "cooldown_days": 7,
+  "restart": {
+    "min_hours_between_restarts": 20.0,
+    "only_if_changed": true
+  },
+  "_frozen_note": "FROZEN 2026-07-04 until post-G1 (verdict 07-10): enable_perp_add=false + target_size=20. Removal of dead coins stays ACTIVE. Re-enable adds after G1 by setting enable_perp_add=true, target_size=24."
+}

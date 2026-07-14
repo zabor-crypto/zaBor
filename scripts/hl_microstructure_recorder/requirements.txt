@@ -1,0 +1,3 @@
+# Recorder only. The analysis tools (toxicity*.py, first_look.py, universe
+# manager, watchdog) are pure standard library — no third-party deps.
+websockets>=12.0

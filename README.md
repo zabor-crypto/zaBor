@@ -32,6 +32,7 @@ Default mode is **`dry_run: true`**. You are responsible for:
 | [`scripts/long_gate_orchestrator/`](scripts/long_gate_orchestrator/) | Causal regime-gating layer for swing-long strategies — enable in favorable regimes, suppress the downtrend tail; shared regime panel + per-strategy thresholds, full WFO/placebo validation battery |
 | [`scripts/liquidation_signal_research/`](scripts/liquidation_signal_research/) | Binance liquidation cascade signal — event-sourced paper-trading pipeline, microstructure features, 22K paper trade validation. Research in progress. |
 | [`scripts/lighter_mm/`](scripts/lighter_mm/) | Market-making strategy simulator for Lighter.xyz DEX — spread quoting, inventory skew, toxicity filter, walk-forward optimization |
+| [`scripts/hl_microstructure_recorder/`](scripts/hl_microstructure_recorder/) | Hyperliquid microstructure recorder + toxicity toolkit — captures L2/BBO/trades with counterparty wallet addresses, measures maker adverse selection per market and per wallet (incl. λ(δ) fill-intensity for Avellaneda–Stoikov) |
 | [`exchanges/bitget/`](exchanges/bitget/) | Typed Bitget REST client adapter (order lifecycle, credentials, retries) |
 | [`indicators/tradingview/`](indicators/tradingview/) | Pine Script indicators — entry-signal overlay + visual market-context dashboard |
 | [`configs/`](configs/) | YAML config templates |
@@ -128,6 +129,25 @@ python signal_bot.py
 ```
 
 → See [`scripts/alt_4h_reversal_scanner/README.md`](scripts/alt_4h_reversal_scanner/README.md)
+
+---
+
+### Hyperliquid Microstructure Recorder + Toxicity Toolkit (`scripts/hl_microstructure_recorder/`)
+
+An isolated, append-only recorder for Hyperliquid's **wallet-tagged** order flow, plus a pure-stdlib toolkit that measures whether a market maker actually profits against the flow crossing its spread. Hyperliquid prints both counterparty addresses on every trade — this turns adverse selection from a guess into a per-wallet measurement. No API keys, no strategy, no execution.
+
+**Records:** L2 book (20 lvl) · BBO · trades (with counterparty wallets) → hourly-rotated gzip JSONL
+**Toxicity suite:** per-coin & per-wallet maker net edge · intraday persistence (ACF/half-life) · depth-markout + λ(δ) fill-intensity for Avellaneda–Stoikov · train→test wallet-toxicity stability
+**Finding (1 day, 19 markets, ~49k wallets):** naive quoting into the raw tape is negative on 18/19 markets, yet 30–57% of taker flow is non-toxic — the edge is counterparty selection, not spread.
+
+```bash
+cd scripts/hl_microstructure_recorder
+pip install -r requirements.txt          # just `websockets`
+HL_MM_OUT=./data python hl_l2_recorder.py
+python toxicity.py --root ./data --coins BTC,ETH,SOL --json
+```
+
+→ See [`scripts/hl_microstructure_recorder/README.md`](scripts/hl_microstructure_recorder/README.md)
 
 ---
 

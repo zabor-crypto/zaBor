@@ -1,0 +1,10 @@
+[Unit]
+Description=hl-mm: universe rotation manager (prune dead coins, probe-add active ones)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/hl_mm/hl_universe_manager.py --apply
+StandardOutput=append:/opt/hl_mm/universe_audit.log
+StandardError=append:/opt/hl_mm/universe_audit.log
