@@ -1,4 +1,4 @@
-# killswitch-crypto
+# killswitch
 
 **Automated emergency risk management for multi-exchange crypto trading.**
 
@@ -55,8 +55,8 @@ Validated by counterfactual replay of a real account's own 60-second history: ma
 ## Quickstart (≤5 commands)
 
 ```bash
-git clone https://github.com/zabor-crypto/killswitch-crypto
-cd killswitch-crypto
+git clone https://github.com/zabor-crypto/zaBor
+cd zaBor/scripts/killswitch
 pip install -r requirements.txt
 cp .env.example .env && nano .env        # fill in your API keys
 python3 killswitch.py --test-mock        # must pass before anything else
