@@ -1,10 +1,18 @@
 # liquidation-signal-research
 
-**Binance liquidation cascade signal — production paper-trading pipeline and research results.**
+**Binance liquidation cascade signal — event-sourced paper-trading pipeline and research results.**
 
-This repository documents a complete research cycle: hypothesis, production-grade implementation, live paper-trading validation on 22,000+ trades, and honest conclusions.
+This module documents a complete research cycle: hypothesis, an event-sourced implementation with
+deterministic replay, paper-trading validation over 22,000+ simulated trades, and honest conclusions.
 
 **Status:** v1 paper validation complete. Research continues on cross-venue execution and architecture redesign.
+
+> **Reproducibility note.** The figures below come from a private paper-trading run (7-day window,
+> May 2026) against live Binance market data. **No orders were placed** — the pipeline was in paper
+> mode throughout. The raw event log and trade records are not published, so these numbers are not
+> reproducible from this repository alone. What is published is the pipeline, the features, the
+> replay machinery and the full post-mortem reasoning. Dataset, period and method are stated with
+> every figure; treat them as a documented research record, not a verifiable benchmark.
 
 ---
 

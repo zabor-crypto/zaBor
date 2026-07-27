@@ -238,7 +238,7 @@ See [config/strategy_params.yaml](config/strategy_params.yaml) for all parameter
 - **Live execution** — no order placement, account management, or cancel/replace logic
 - **Historical data** — `data/` parquet panels are excluded; collect your own with `main_collect.py`
 - **Backtest run artifacts** — `outputs/` is gitignored; results described above are from local runs
-- **Production-grade margin model** — the engine uses a free/used approximation adequate for research, not for live sizing
+- **A margin model that accounts for exchange-specific collateral and liquidation rules** — the engine uses a free/used approximation adequate for research, not for live sizing
 - **Portfolio-level risk** — no cross-strategy capital allocation, no correlation-aware sizing
 
 ---

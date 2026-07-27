@@ -176,4 +176,4 @@ Do not deploy capital without independent validation on live data.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see the [repository LICENSE](../../LICENSE).

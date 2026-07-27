@@ -2,233 +2,235 @@
 
 > Engineering-focused toolkit for market-data recording, execution safety and reproducible research.
 
+[![CI](https://github.com/zabor-crypto/zaBor/actions/workflows/ci.yml/badge.svg)](https://github.com/zabor-crypto/zaBor/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ---
 
-## Safety (READ FIRST)
+## What zaBor is
 
-This repository contains **live-trading capable** components.  
-Default mode is **`dry_run: true`** — live execution requires an explicit `dry_run: false` in the
-config, and a config that omits the key runs in dry-run. You are responsible for:
+A collection of self-contained modules for two problems that are easy to get wrong in automated
+market systems: **operational safety** — controls that must fail closed rather than open — and
+**reproducible research** — findings published together with the code and method that produced them.
 
-- API key security and IP whitelisting
-- Position sizing and risk limits
-- Exchange-specific rules (min size, lot size, tick, leverage caps)
-- Compliance with local regulations
+Everything here installs and tests offline. No API key is required to clone, install, run the test
+suite, or read any result.
 
-**Never run in live mode without a dry-run validation period (24–48 hours minimum).**
+It is **not** a trading strategy, and it makes no claim of profitability.
 
 ---
 
-## What's inside
+## Three flagship components
 
-| Path | Description |
-|------|-------------|
-| [`scripts/alt_4h_scanner/`](scripts/alt_4h_scanner/) | Binance spot scanner — 4H accumulation breakout detection with 9-filter stack, computes structured limit-order levels for pullback entries |
-| [`scripts/alt_4h_reversal_scanner/`](scripts/alt_4h_reversal_scanner/) | Binance/Bitget perps scanner — 4H LONG reversal detection with three independent detectors (squeeze breakout, failed breakdown, sweep reclaim), filter stack, MTF 1H confirmation, and regime-adaptive R-multiple TP ladders |
-| [`scripts/killswitch/`](scripts/killswitch/) | Emergency risk management system v7.0 — PnL attribution + staged closure plus a portfolio-level Regime Guard for slow-bleed drawdowns, Binance/Bybit/Bitget, 153 tests |
-| [`scripts/funding_arb_research/`](scripts/funding_arb_research/) | Funding rate arbitrage research stack — async collectors for 6 venues, strategy-agnostic backtest engine, 8 strategies evaluated |
-| [`scripts/long_gate_orchestrator/`](scripts/long_gate_orchestrator/) | Causal regime-gating layer for swing-long strategies — enable in favorable regimes, suppress the downtrend tail; shared regime panel + per-strategy thresholds, full WFO/placebo validation battery |
-| [`scripts/liquidation_signal_research/`](scripts/liquidation_signal_research/) | Binance liquidation cascade signal — event-sourced paper-trading pipeline, microstructure features. Research in progress. |
-| [`scripts/lighter_mm/`](scripts/lighter_mm/) | Market-making strategy simulator for Lighter.xyz DEX — spread quoting, inventory skew, toxicity filter, walk-forward optimization |
-| [`scripts/hl_microstructure_recorder/`](scripts/hl_microstructure_recorder/) | Hyperliquid microstructure recorder + toxicity toolkit — captures L2/BBO/trades with counterparty wallet addresses, measures maker adverse selection per market and per wallet (incl. λ(δ) fill-intensity for Avellaneda–Stoikov) |
-| [`exchanges/bitget/`](exchanges/bitget/) | Typed Bitget REST client adapter (order lifecycle, credentials, retries) |
-| [`indicators/tradingview/`](indicators/tradingview/) | Pine Script indicators — entry-signal overlay + visual market-context dashboard |
-| [`configs/`](configs/) | YAML config templates |
+### 1. Kill-Switch — [`scripts/killswitch/`](scripts/killswitch/)
+
+Emergency risk-control engine with two independent contours.
+
+The **fast-crash stages** identify which side caused a sharp loss, rank positions by a composite risk
+score, and close surgically — escalating only if the situation worsens. The **Regime Guard** adds a
+portfolio-level contour for the failure the fast stages structurally cannot see: the slow bleed —
+positions held underwater for days, or one coin steadily squeezed against the book.
+
+- **Stages:** close top-N risk contributors → close dominant losing direction → full stop (manual reset)
+- **Regime Guard:** catastrophe cap · peak-drawdown · correlated cluster · daily loss · log-only rollout
+- **Exchanges:** Binance, Bybit, Bitget · Futures + Spot · SQLite state
+- **153 tests**, offline, no credentials
+
+### 2. Hyperliquid Microstructure Recorder + Toxicity Toolkit — [`scripts/hl_microstructure_recorder/`](scripts/hl_microstructure_recorder/)
+
+An append-only recorder for **wallet-tagged** order flow, plus a pure-standard-library toolkit that
+measures whether a market maker actually profits against the flow crossing its spread.
+
+Hyperliquid publishes both counterparty addresses on every trade. That turns adverse selection from an
+assumption into a per-counterparty measurement — the methodological point of the module.
+No API keys, no strategy logic, no execution.
+
+- **Records:** L2 book (20 levels) · BBO · trades with counterparty wallets → hourly-rotated gzip JSONL
+- **Toxicity suite:** per-coin and per-wallet maker net edge · intraday persistence (ACF/half-life) ·
+  depth-markout and λ(δ) fill-intensity for Avellaneda–Stoikov · train→test wallet-stability check
+
+Findings from a single-day capture are reported in the
+[module README](scripts/hl_microstructure_recorder/README.md), with sample size, period and method
+stated alongside them. The raw capture is not published.
+
+### 3. Funding Rate Arbitrage Research — [`scripts/funding_arb_research/`](scripts/funding_arb_research/)
+
+Multi-venue delta-neutral funding-carry research stack: six async collectors (Binance, Bybit, OKX,
+Hyperliquid, Bitget, GMX v2), a strategy-agnostic no-look-ahead backtest engine with an explicit cost
+model, proper funding-settlement timing and margin simulation.
+
+Dependencies are exact-pinned so parquet/CSV outputs are byte-identical across runs on the same
+Python version.
+
+> **Verdict: REJECT.** Five carry strategies and three event-driven variants all fail at current fee
+> levels. The verdict tables and the reasoning ship with the code. Understanding *why* they fail — and
+> where the fee/spread boundary sits — is the research output; the infrastructure is the artifact.
+
+---
+
+## Safety model
+
+This repository contains **live-trading-capable** components. The design rule is **fail closed**:
+
+- `dry_run` defaults to **true**. A config that omits the key, or sets it to null or a non-boolean
+  value, runs in dry-run and logs why. Live execution requires an explicit boolean `dry_run: false`.
+- Enabling live mode prints a prominent warning before anything runs.
+- There is no CLI flag that can enable live execution — it is config-only, by design.
+- Stage 3 (full stop) requires a **manual** reset; the system does not resume trading on its own.
+- Credentials come from environment variables only; nothing is read from committed config.
+- Exchange keys should be **trade-only** (no withdrawal permission) and IP-whitelisted.
+
+**Never run in live mode without a dry-run validation period of at least 24–48 hours.**
+
+You remain responsible for API-key security, position sizing, exchange-specific rules (min size, lot
+size, tick, leverage caps) and local regulatory compliance.
+
+---
+
+## Architecture overview
+
+```
+                 ┌──────────────────────────────────────────┐
+   venue APIs ──▶│  collectors        REST / WebSocket       │
+                 │  · async, retrying, rate-limit aware      │
+                 └───────────────────┬──────────────────────┘
+                                     ▼
+                 ┌──────────────────────────────────────────┐
+                 │  normalization     unified schema         │
+                 │  · per-venue quirks isolated at the edge  │
+                 └───────────────────┬──────────────────────┘
+                          ┌──────────┴───────────┐
+                          ▼                      ▼
+        ┌─────────────────────────┐   ┌─────────────────────────┐
+        │  research               │   │  operational controls   │
+        │  · no-look-ahead engine │   │  · risk scoring         │
+        │  · explicit cost model  │   │  · staged closure       │
+        │  · PASS/REJECT verdicts │   │  · SQLite state machine │
+        └─────────────────────────┘   └───────────┬─────────────┘
+                                                  ▼
+                                      ┌─────────────────────────┐
+                                      │  exchange adapters      │
+                                      │  typed, dry-run gated   │
+                                      └─────────────────────────┘
+```
+
+Each module under `scripts/` is self-contained with its own dependencies — deliberately, so a research
+module can pin exact versions for reproducibility while an operational module tracks security updates.
 
 ---
 
 ## Quickstart
 
-Runs fully offline. No API key is needed to install, test, or explore.
+Fully offline. No API key, no exchange account, no live connection.
 
 ```bash
 git clone https://github.com/zabor-crypto/zaBor.git
 cd zaBor
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -U pip
 pip install -e ".[dev]"
+```
 
-# Verify — 153 tests, no API keys, no network
+Verify the install — 153 tests, no network, no credentials:
+
+```bash
 pip install -r scripts/killswitch/requirements.txt
 python -m pytest scripts/killswitch/tests -q
 ```
 
-Only after this offline path works should you configure API keys for any live-capable component.
-
----
-
-## Scripts
-
-### Kill-Switch v7.0 (`scripts/killswitch/`)
-
-Emergency risk management system with two complementary contours. The **fast-crash stages** identify which side caused a sharp loss (longs vs shorts), rank positions by a composite risk score, and close surgically — escalating only if it worsens. The **Regime Guard** (v7.0) adds a portfolio-level contour for the *slow bleed* the fast stages never see: positions held underwater for days, or a single coin squeezed against you. Close-only, with drawdown-velocity selection and a side-aware macro gate.
-
-**Stages:** 1 → close top-N risk contributors · 2 → close dominant losing direction · 3 → full stop (manual reset required)  
-**Regime Guard:** L0 catastrophe cap · L2 peak-drawdown · L3 correlated cluster · L4 daily loss · log-only rollout mode  
-**Exchanges:** Binance, Bybit, Bitget · Futures + Spot · SQLite state · 153 tests
+Run the offline demo — an end-to-end pass against mock exchange state, no orders, no keys:
 
 ```bash
-cd scripts/killswitch
-cp .env.example .env  # fill in API keys
-python3 killswitch.py --test-mock
-python3 -m pytest tests/ -v
-python3 killswitch.py --config config.yaml   # dry_run: true by default
+python scripts/killswitch/killswitch.py --test-mock
 ```
 
-→ See [`scripts/killswitch/README.md`](scripts/killswitch/README.md)
+Only after this offline path works should you configure credentials for any live-capable component.
 
 ---
 
-### Funding Rate Arbitrage Research (`scripts/funding_arb_research/`)
+## Tests and CI
 
-Multi-venue funding rate arbitrage research stack. Async data collectors for 6 venues (Binance, Bybit, OKX, Hyperliquid, Bitget, GMX v2), strategy-agnostic backtest engine, 8 strategies tested across multiple hypotheses.
+| Module | Tests | Offline |
+|---|---:|---|
+| [`scripts/killswitch/`](scripts/killswitch/) | 153 | ✅ |
+| [`scripts/liquidation_signal_research/v1/`](scripts/liquidation_signal_research/) | 23 test modules | ✅ |
 
-**Honest result:** all strategies REJECT at current fee levels. Research infra is reusable for further hypotheses.
+CI runs three jobs on every push: `lint` (ruff + mypy on the shared root), `install` (clean venv,
+installs via the documented command, imports the public package), and `tests` (runs the Kill-Switch
+suite and fails if fewer than 130 tests are collected).
 
-```bash
-cd scripts/funding_arb_research
-pip install -r requirements.txt
-cp .env.example .env
-python3 main_collect.py      # start data collection
-python3 main_backtest.py     # run backtest
-```
-
-→ See [`scripts/funding_arb_research/README.md`](scripts/funding_arb_research/README.md)
+Modules under `scripts/` carry their own dependencies and are checked per-module rather than in shared
+CI. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
-### Lighter MM Simulator (`scripts/lighter_mm/`)
+## Complete project catalog
 
-Bar-by-bar simulation of a spread-based market-making strategy calibrated to [Lighter.xyz](https://lighter.xyz) DEX mechanics (zero protocol fees, on-chain order book).
-
-Key mechanics: ATR-scaled spread · inventory skew · momentum toxicity filter · maker exit ladder · edge gate · daily drawdown stop
-
-```bash
-cd scripts/lighter_mm
-pip install -r ../../requirements-sim.txt
-
-# Full simulation on included sample data
-python mm_sim.py --data data/sol_1m_sample.csv --full-run
-
-# Walk-forward parameter optimization
-python mm_sim.py --data data/sol_1m_sample.csv --walk-forward
-```
-
-→ See [`scripts/lighter_mm/README.md`](scripts/lighter_mm/README.md)
-
----
-
-### ALT 4H Reversal Scanner (`scripts/alt_4h_reversal_scanner/`)
-
-LONG-only 4H reversal scanner for USDT-M perpetuals (Binance ∩ Bitget). Three independent, orthogonal detectors fire under a common parent tag and a multi-stage filter stack, each with its own R-multiple take-profit ladder and a 2H-close stop.
-
-**Detectors:** squeeze breakout · failed breakdown · sweep reclaim
-**Filter stack:** RSI context · 4H ATR% volatility floor · liquidity-cohort filter · day/hour blacklist · 1H MTF confirmation · optional BTC-regime gate
-**Scope:** signal generation only — the exit-management stack is not in this repository.
-Backtest methodology and results, including the raw detection edge and its walk-forward behaviour,
-are reported in the [module README](scripts/alt_4h_reversal_scanner/README.md) with their dataset,
-timeframe and method. They are based on a private historical dataset and are not reproducible from
-this repository alone.
-
-```bash
-cd scripts/alt_4h_reversal_scanner
-pip install -r requirements.txt
-cp .env.example .env   # optional — runs and logs without keys
-python signal_bot.py
-```
-
-→ See [`scripts/alt_4h_reversal_scanner/README.md`](scripts/alt_4h_reversal_scanner/README.md)
-
----
-
-### Hyperliquid Microstructure Recorder + Toxicity Toolkit (`scripts/hl_microstructure_recorder/`)
-
-An isolated, append-only recorder for Hyperliquid's **wallet-tagged** order flow, plus a pure-stdlib toolkit that measures whether a market maker actually profits against the flow crossing its spread. Hyperliquid prints both counterparty addresses on every trade — this turns adverse selection from a guess into a per-wallet measurement. No API keys, no strategy, no execution.
-
-**Records:** L2 book (20 lvl) · BBO · trades (with counterparty wallets) → hourly-rotated gzip JSONL
-**Toxicity suite:** per-coin & per-wallet maker net edge · intraday persistence (ACF/half-life) · depth-markout + λ(δ) fill-intensity for Avellaneda–Stoikov · train→test wallet-toxicity stability
-**Finding:** on a descriptive single-day capture, naive quoting into the raw tape does not pay for
-itself on most markets, while a substantial share of taker flow is non-toxic — the edge is
-counterparty selection, not spread. Full figures, sample size and method are in the
-[module README](scripts/hl_microstructure_recorder/README.md). This is a snapshot of one capture
-window, not a strategy or a forward-looking claim, and the raw capture is not published.
-
-```bash
-cd scripts/hl_microstructure_recorder
-pip install -r requirements.txt          # just `websockets`
-HL_MM_OUT=./data python hl_l2_recorder.py
-python toxicity.py --root ./data --coins BTC,ETH,SOL --json
-```
-
-→ See [`scripts/hl_microstructure_recorder/README.md`](scripts/hl_microstructure_recorder/README.md)
-
----
-
-## TradingView Indicators (`indicators/tradingview/`)
-
-Pine Script indicators for signal research and visual chart validation.
-
-**zaBor RSI + AO + Stochastic Entry System** — structured BUY/SELL signal overlay:
-- RSI regular & hidden divergences
-- Awesome Oscillator momentum filter
-- Stochastic reversal trigger with cooldown anti-spam
-
-→ See [`indicators/tradingview/zaBor_RSI_AO_Stoch_Entry_System/README.md`](indicators/tradingview/zaBor_RSI_AO_Stoch_Entry_System/README.md)
-
-**Crypto Context Dashboard** — visual present-state context panel (not a strategy):
-- Trend / MTF agreement / volatility / extension / candle-noise context in a compact table
-- Causal, trailing-only formulas; non-repainting higher-timeframe context
-- Descriptive only — no trade calls, no forecasts; neutral state-change alerts
-
-→ See [`indicators/tradingview/crypto_context_dashboard/README.md`](indicators/tradingview/crypto_context_dashboard/README.md)
+| Path | Description |
+|------|-------------|
+| [`scripts/killswitch/`](scripts/killswitch/) | **Flagship.** Emergency risk-control engine — PnL attribution, staged closure, portfolio-level Regime Guard. Binance/Bybit/Bitget. 153 tests |
+| [`scripts/hl_microstructure_recorder/`](scripts/hl_microstructure_recorder/) | **Flagship.** Wallet-tagged microstructure recorder + per-counterparty adverse-selection toolkit |
+| [`scripts/funding_arb_research/`](scripts/funding_arb_research/) | **Flagship.** Multi-venue funding-carry research stack — 6 collectors, no-look-ahead engine, REJECT verdict |
+| [`scripts/alt_4h_scanner/`](scripts/alt_4h_scanner/) | Binance spot scanner — 4H accumulation breakout detection with a 9-filter stack, computes structured limit-order levels for pullback entries |
+| [`scripts/alt_4h_reversal_scanner/`](scripts/alt_4h_reversal_scanner/) | Binance/Bitget perps — 4H LONG reversal detection, three independent detectors, filter stack, 1H MTF confirmation, regime-adaptive R-multiple TP ladders. Signal generation only |
+| [`scripts/liquidation_signal_research/`](scripts/liquidation_signal_research/) | Binance liquidation cascade signal — event-sourced paper-trading pipeline, microstructure features. Research in progress |
+| [`scripts/long_gate_orchestrator/`](scripts/long_gate_orchestrator/) | Causal regime-gating layer for swing-long strategies — shared regime panel, per-strategy thresholds, WFO/placebo validation battery |
+| [`scripts/lighter_mm/`](scripts/lighter_mm/) | Market-making simulator for Lighter.xyz DEX — ATR-scaled spread, inventory skew, toxicity filter, walk-forward optimization |
+| [`exchanges/bitget/`](exchanges/bitget/) | Typed Bitget REST client adapter — order lifecycle, credentials, retries |
+| [`indicators/tradingview/`](indicators/tradingview/) | Pine Script — entry-signal overlay and a descriptive market-context dashboard |
+| [`configs/`](configs/) | YAML configuration templates |
 
 ---
 
 ## Configuration
 
-All sensitive values are passed via environment variables — never hardcoded.
+All sensitive values come from environment variables — never hardcoded, never committed.
 
 ```bash
-export BINANCE_API_KEY="..."
-export BINANCE_API_SECRET="..."
-export BYBIT_API_KEY="..."
-export BYBIT_API_SECRET="..."
-export BITGET_API_KEY="..."
-export BITGET_API_SECRET="..."
-export BITGET_PASSWORD="..."
+export BINANCE_API_KEY="..."      export BINANCE_API_SECRET="..."
+export BYBIT_API_KEY="..."        export BYBIT_API_SECRET="..."
+export BITGET_API_KEY="..."       export BITGET_API_SECRET="..."   export BITGET_PASSWORD="..."
 ```
 
-See [`.env.example`](.env.example) for the full list.
+See [`.env.example`](.env.example) for the full list. Requires Python 3.10+.
 
 ---
 
-## What is intentionally NOT in this repository
+## Limitations and scope
+
+- **No strategy and no profitability claim.** Signal-generation and research modules are published
+  without the exit-management and sizing layers that would be required to trade them.
+- **Research findings are not all reproducible from this repository.** Where a result depends on a
+  private dataset or a private capture, the module documentation says so and states the period,
+  sample size and method. Nothing here should be read as a forward-looking claim.
+- **Modules are independent and unevenly mature.** The three flagship components are the most
+  developed; others are research artifacts at varying stages, labelled accordingly.
+- **Live-capable code is not proven in production.** It is tested offline and designed to fail closed;
+  that is not the same as an operational track record.
+- **Exchange behaviour under stress** — partial fills, rate limits, API degradation exactly when it
+  matters — is handled defensively but cannot be fully tested against live venues.
+
+### What is intentionally not in this repository
 
 Private account-level performance, proprietary parameters and live trading records are not included.
 Reproducible research findings based on public or included sample data may be reported in module
 documentation.
 
-Also excluded:
-
-- Live strategy logic and signal parameters (alpha)
-- Position history, trade logs, or runtime state
-- Private configuration files (`.env`, `config.yaml` with real keys)
+Also excluded: live strategy logic and signal parameters; position history, trade logs and runtime
+state; private configuration files (`.env`, `config.yaml` with real keys).
 
 ---
 
-## Requirements
+## License and contributing
 
-- Python 3.10+
-- Per-script dependencies listed in each `scripts/*/requirements.txt`
-- Exchange API keys with **trade-only** permissions (no withdrawal)
+MIT — see [LICENSE](LICENSE). TradingView Pine Script components carry their own license; see the
+indicator subdirectory.
 
----
+Contributions and issue reports are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) and
+[SECURITY.md](SECURITY.md). Please do not open public issues for security matters.
 
-## License
-
-MIT — see [LICENSE](LICENSE).  
-TradingView Pine Script components carry their own license — see indicator subdirectory.
+**Disclaimer.** For research and educational purposes. Automated trading carries substantial risk of
+financial loss. Nothing here is investment advice. Test thoroughly in dry-run mode before deploying
+capital.
