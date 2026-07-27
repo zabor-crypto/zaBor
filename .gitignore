@@ -31,6 +31,12 @@ logs/
 .idea/
 *.code-workspace
 
+# Coding-agent configuration — machine-local, contains absolute paths.
+# Must never be published.
+AGENTS.md
+CLAUDE.md
+.claude/
+
 # OS
 .DS_Store
 Thumbs.db

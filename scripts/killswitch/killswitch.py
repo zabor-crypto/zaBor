@@ -216,6 +216,10 @@ class GlobalConfig:
 # SECTION 2: CONFIG LOADER
 # ==============================================================================
 
+# Sentinel distinguishing "key absent" from "key present with a null value".
+_UNSET = object()
+
+
 class ConfigLoader:
     def load(self, path: str) -> GlobalConfig:
         if not os.path.exists(path):
@@ -269,12 +273,42 @@ class ConfigLoader:
             bot_token_env=tg_data.get('bot_token_env', 'TELEGRAM_BOT_TOKEN'),
             chat_id_env=tg_data.get('chat_id_env', 'TELEGRAM_CHAT_ID'),
         )
+
+        # Fail closed: live execution requires an explicit boolean `dry_run: false`.
+        # Absent, null, or any non-boolean value runs in dry-run, never live —
+        # `dry_run:` with no value parses to None, which must not read as "false".
+        raw_dry_run = data.get('dry_run', _UNSET)
+        if raw_dry_run is _UNSET or raw_dry_run is None:
+            print(
+                "[CONFIG] 'dry_run' not set in config — defaulting to dry_run=true "
+                "(no orders will be sent). Set 'dry_run: false' explicitly to trade live."
+            )
+            dry_run = True
+        elif isinstance(raw_dry_run, bool):
+            dry_run = raw_dry_run
+        else:
+            print(
+                f"[CONFIG] 'dry_run' has non-boolean value {raw_dry_run!r} — "
+                "treating as dry_run=true. Use `dry_run: false` to trade live."
+            )
+            dry_run = True
+
+        if not dry_run:
+            print(
+                "\n"
+                "  ############################################################\n"
+                "  #  LIVE MODE — dry_run is false.                           #\n"
+                "  #  Real orders WILL be placed and positions WILL be closed. #\n"
+                "  #  Interrupt now if this was not intended.                 #\n"
+                "  ############################################################\n"
+            )
+
         return GlobalConfig(
             poll_seconds=data.get('poll_seconds', 60),
             state_db=data.get('state_db', './killswitch_state.sqlite'),
             stables_keep=data.get('stables_keep', ["USDT", "USDC", "DAI", "FDUSD"]),
             exchanges=exchanges,
-            dry_run=data.get('dry_run', False),
+            dry_run=dry_run,
             trading_lock_file=data.get('trading_lock_file', './killswitch_trading_lock.json'),
             spot_routing_delta_only=spot_routing.get('sell_intermediate_delta_only', True),
             spot_routing_allow_preexisting=spot_routing.get('allow_liquidate_preexisting_intermediate', False),
@@ -1853,12 +1887,23 @@ def run_backtest(csv_path: str, config_path: str):
 # SECTION 9: MAIN ENTRY
 # ==============================================================================
 
-def run():
-    parser = argparse.ArgumentParser(description="Crypto Portfolio Kill-Switch v3.0")
+def build_arg_parser() -> argparse.ArgumentParser:
+    """Build the CLI parser.
+
+    Deliberately exposes no flag that can enable live execution: live mode is
+    reachable only through an explicit `dry_run: false` in the config file.
+    Kept as a separate function so that contract is testable.
+    """
+    parser = argparse.ArgumentParser(description="Crypto Portfolio Kill-Switch")
     parser.add_argument("--config", help="Config file path")
     parser.add_argument("--test-mock", action="store_true", help="Run self-test with mock data")
     parser.add_argument("--backtest", help="CSV file for backtest mode")
     parser.add_argument("--verbose", action="store_true", help="Enable debug logging")
+    return parser
+
+
+def run():
+    parser = build_arg_parser()
     args = parser.parse_args()
 
     if args.backtest:

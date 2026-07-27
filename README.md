@@ -1,6 +1,6 @@
 # zaBor
 
-> Production-grade systematic crypto trading toolkit: execution, risk controls, research, and TradingView indicators.
+> Engineering-focused toolkit for market-data recording, execution safety and reproducible research.
 
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -10,7 +10,8 @@
 ## Safety (READ FIRST)
 
 This repository contains **live-trading capable** components.  
-Default mode is **`dry_run: true`**. You are responsible for:
+Default mode is **`dry_run: true`** — live execution requires an explicit `dry_run: false` in the
+config, and a config that omits the key runs in dry-run. You are responsible for:
 
 - API key security and IP whitelisting
 - Position sizing and risk limits
@@ -27,10 +28,10 @@ Default mode is **`dry_run: true`**. You are responsible for:
 |------|-------------|
 | [`scripts/alt_4h_scanner/`](scripts/alt_4h_scanner/) | Binance spot scanner — 4H accumulation breakout detection with 9-filter stack, computes structured limit-order levels for pullback entries |
 | [`scripts/alt_4h_reversal_scanner/`](scripts/alt_4h_reversal_scanner/) | Binance/Bitget perps scanner — 4H LONG reversal detection with three independent detectors (squeeze breakout, failed breakdown, sweep reclaim), filter stack, MTF 1H confirmation, and regime-adaptive R-multiple TP ladders |
-| [`scripts/killswitch/`](scripts/killswitch/) | Emergency risk management system v7.0 — PnL attribution + staged closure plus a portfolio-level Regime Guard for slow-bleed drawdowns, Binance/Bybit/Bitget, 139 tests |
+| [`scripts/killswitch/`](scripts/killswitch/) | Emergency risk management system v7.0 — PnL attribution + staged closure plus a portfolio-level Regime Guard for slow-bleed drawdowns, Binance/Bybit/Bitget, 153 tests |
 | [`scripts/funding_arb_research/`](scripts/funding_arb_research/) | Funding rate arbitrage research stack — async collectors for 6 venues, strategy-agnostic backtest engine, 8 strategies evaluated |
 | [`scripts/long_gate_orchestrator/`](scripts/long_gate_orchestrator/) | Causal regime-gating layer for swing-long strategies — enable in favorable regimes, suppress the downtrend tail; shared regime panel + per-strategy thresholds, full WFO/placebo validation battery |
-| [`scripts/liquidation_signal_research/`](scripts/liquidation_signal_research/) | Binance liquidation cascade signal — event-sourced paper-trading pipeline, microstructure features, 22K paper trade validation. Research in progress. |
+| [`scripts/liquidation_signal_research/`](scripts/liquidation_signal_research/) | Binance liquidation cascade signal — event-sourced paper-trading pipeline, microstructure features. Research in progress. |
 | [`scripts/lighter_mm/`](scripts/lighter_mm/) | Market-making strategy simulator for Lighter.xyz DEX — spread quoting, inventory skew, toxicity filter, walk-forward optimization |
 | [`scripts/hl_microstructure_recorder/`](scripts/hl_microstructure_recorder/) | Hyperliquid microstructure recorder + toxicity toolkit — captures L2/BBO/trades with counterparty wallet addresses, measures maker adverse selection per market and per wallet (incl. λ(δ) fill-intensity for Avellaneda–Stoikov) |
 | [`exchanges/bitget/`](exchanges/bitget/) | Typed Bitget REST client adapter (order lifecycle, credentials, retries) |
@@ -41,14 +42,22 @@ Default mode is **`dry_run: true`**. You are responsible for:
 
 ## Quickstart
 
+Runs fully offline. No API key is needed to install, test, or explore.
+
 ```bash
-git clone git@github.com:zabor-crypto/zaBor.git
+git clone https://github.com/zabor-crypto/zaBor.git
 cd zaBor
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -U pip
 pip install -e ".[dev]"
+
+# Verify — 153 tests, no API keys, no network
+pip install -r scripts/killswitch/requirements.txt
+python -m pytest scripts/killswitch/tests -q
 ```
+
+Only after this offline path works should you configure API keys for any live-capable component.
 
 ---
 
@@ -60,7 +69,7 @@ Emergency risk management system with two complementary contours. The **fast-cra
 
 **Stages:** 1 → close top-N risk contributors · 2 → close dominant losing direction · 3 → full stop (manual reset required)  
 **Regime Guard:** L0 catastrophe cap · L2 peak-drawdown · L3 correlated cluster · L4 daily loss · log-only rollout mode  
-**Exchanges:** Binance, Bybit, Bitget · Futures + Spot · SQLite state · 139 tests
+**Exchanges:** Binance, Bybit, Bitget · Futures + Spot · SQLite state · 153 tests
 
 ```bash
 cd scripts/killswitch
@@ -119,7 +128,11 @@ LONG-only 4H reversal scanner for USDT-M perpetuals (Binance ∩ Bitget). Three 
 
 **Detectors:** squeeze breakout · failed breakdown · sweep reclaim
 **Filter stack:** RSI context · 4H ATR% volatility floor · liquidity-cohort filter · day/hour blacklist · 1H MTF confirmation · optional BTC-regime gate
-**Backtest (honest):** raw detection edge PF ~1.26 across 556 signals over 80 days (squeeze the strongest at 1.63); with the full exit-management stack — not in this repo — rolling walk-forward reads PF 1.92 IS / 2.56 med OOS, realistic-close 1.53–1.85, regime-conditional. Signal-generation only.
+**Scope:** signal generation only — the exit-management stack is not in this repository.
+Backtest methodology and results, including the raw detection edge and its walk-forward behaviour,
+are reported in the [module README](scripts/alt_4h_reversal_scanner/README.md) with their dataset,
+timeframe and method. They are based on a private historical dataset and are not reproducible from
+this repository alone.
 
 ```bash
 cd scripts/alt_4h_reversal_scanner
@@ -138,7 +151,11 @@ An isolated, append-only recorder for Hyperliquid's **wallet-tagged** order flow
 
 **Records:** L2 book (20 lvl) · BBO · trades (with counterparty wallets) → hourly-rotated gzip JSONL
 **Toxicity suite:** per-coin & per-wallet maker net edge · intraday persistence (ACF/half-life) · depth-markout + λ(δ) fill-intensity for Avellaneda–Stoikov · train→test wallet-toxicity stability
-**Finding (1 day, 19 markets, ~49k wallets):** naive quoting into the raw tape is negative on 18/19 markets, yet 30–57% of taker flow is non-toxic — the edge is counterparty selection, not spread.
+**Finding:** on a descriptive single-day capture, naive quoting into the raw tape does not pay for
+itself on most markets, while a substantial share of taker flow is non-toxic — the edge is
+counterparty selection, not spread. Full figures, sample size and method are in the
+[module README](scripts/hl_microstructure_recorder/README.md). This is a snapshot of one capture
+window, not a strategy or a forward-looking claim, and the raw capture is not published.
 
 ```bash
 cd scripts/hl_microstructure_recorder
@@ -191,8 +208,13 @@ See [`.env.example`](.env.example) for the full list.
 
 ## What is intentionally NOT in this repository
 
+Private account-level performance, proprietary parameters and live trading records are not included.
+Reproducible research findings based on public or included sample data may be reported in module
+documentation.
+
+Also excluded:
+
 - Live strategy logic and signal parameters (alpha)
-- Backtesting results and performance metrics
 - Position history, trade logs, or runtime state
 - Private configuration files (`.env`, `config.yaml` with real keys)
 

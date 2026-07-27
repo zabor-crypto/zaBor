@@ -1,7 +1,11 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "zabor"
 version = "0.1.0"
-description = "zaBor: production-grade crypto trading scripts (research, backtests, execution utilities, analytics)."
+description = "Open-source toolkit for market-data research, operational risk controls and reproducible analysis."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -22,6 +26,15 @@ dev = [
   "ruff>=0.6",
   "types-PyYAML",
 ]
+
+# `exchanges/` carries no __init__.py files, so it is an implicit namespace
+# package. Auto-discovery refuses to guess across several top-level directories,
+# which broke the documented `pip install -e ".[dev]"`; this states the intent
+# explicitly. `namespaces = true` is required — without it the package installs
+# but `exchanges.bitget.client` stays unimportable.
+[tool.setuptools.packages.find]
+include = ["exchanges*"]
+namespaces = true
 
 [tool.ruff]
 line-length = 100
