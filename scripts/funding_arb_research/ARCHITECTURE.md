@@ -208,6 +208,6 @@ When extending the stack, audit against these:
 ## Where to start
 
 - **New strategy:** implement `decide(state: StrategyState) -> Action` and register it in `main_backtest.py`. See any file in `src/strategies/` for the pattern.
-- **Run a backtest:** `python -m funding_arb.main_backtest --strategy <name>`. Results land in `outputs/runs/`.
-- **Refresh data:** `python -m funding_arb.main_collect --venues binance bybit okx hyperliquid --symbols BTC ETH SOL --start YYYY-MM-DD --end YYYY-MM-DD`.
+- **Run a backtest:** `python main_backtest.py --strategy <name>`. Results land in `outputs/runs/`.
+- **Refresh data:** `python main_collect.py --venues binance bybit okx hyperliquid --symbols BTC ETH SOL --start YYYY-MM-DD --end YYYY-MM-DD`.
 - **Understand current results:** see the backtest results table in [README.md](README.md).

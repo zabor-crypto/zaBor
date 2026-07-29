@@ -1,0 +1,6 @@
+# Simulator dependencies. scipy is optional — without it the distribution
+# diagnostics are skipped and the simulation still runs.
+numpy>=1.26
+pandas>=2.2
+matplotlib>=3.8
+scipy>=1.11

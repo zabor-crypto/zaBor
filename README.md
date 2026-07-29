@@ -61,11 +61,26 @@ Hyperliquid, Bitget, GMX v2), a strategy-agnostic no-look-ahead backtest engine 
 model, proper funding-settlement timing and margin simulation.
 
 Dependencies are exact-pinned so parquet/CSV outputs are byte-identical across runs on the same
-Python version.
+Python version. Pins move for published security advisories — the guarantee holds within a pin set,
+not across pin sets.
 
 > **Verdict: REJECT.** Five carry strategies and three event-driven variants all fail at current fee
 > levels. The verdict tables and the reasoning ship with the code. Understanding *why* they fail — and
 > where the fee/spread boundary sits — is the research output; the infrastructure is the artifact.
+
+---
+
+## Related repository
+
+[**research-intelligence-platform**](https://github.com/zabor-crypto/research-intelligence-platform)
+sits upstream of this one. It turns external research — papers, repositories, notes — into ranked,
+backtest-ready strategy hypotheses, and documents the process layer that decides whether such a
+hypothesis survives contact with data: pre-freeze market-identity gates, preregistration, execution
+accounting, independent reconciliation, and terminal closure that cannot be undone.
+
+Its published outcomes are two preregistered backtests, zero gross-positive, zero net-positive, both
+terminally closed. The division of labour is deliberate: that repository decides **what is worth
+building**, this one contains **what was built**.
 
 ---
 

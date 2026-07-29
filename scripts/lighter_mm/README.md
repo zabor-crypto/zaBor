@@ -18,8 +18,8 @@ Lighter.xyz is an on-chain order-book DEX with **zero protocol fees** — the on
 ## Quickstart
 
 ```bash
-git clone https://github.com/zabor-crypto/lighter-mm-sim.git
-cd lighter-mm-sim
+git clone https://github.com/zabor-crypto/zaBor.git
+cd zaBor/scripts/lighter_mm
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 

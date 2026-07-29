@@ -2,13 +2,13 @@
 
 Usage:
 
-    python -m funding_arb.main_collect \
+    python main_collect.py \
         --venues binance bybit okx hyperliquid \
         --symbols BTC ETH SOL \
         --start 2025-01-01 --end 2025-04-01 \
         --out data/normalized
 
-    python -m funding_arb.main_collect --venues gmx_v2 --gmx-snapshot
+    python main_collect.py --venues gmx_v2 --gmx-snapshot
 """
 from __future__ import annotations
 

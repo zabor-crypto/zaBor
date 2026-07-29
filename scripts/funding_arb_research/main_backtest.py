@@ -2,9 +2,9 @@
 
 Usage:
 
-    python -m funding_arb.main_backtest --strategy hl_binance_interval
-    python -m funding_arb.main_backtest --strategy cross_cex_persistence
-    python -m funding_arb.main_backtest --strategy gmx_imbalance_feasibility
+    python main_backtest.py --strategy hl_binance_interval
+    python main_backtest.py --strategy cross_cex_persistence
+    python main_backtest.py --strategy gmx_imbalance_feasibility
 """
 from __future__ import annotations
 

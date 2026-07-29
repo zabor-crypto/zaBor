@@ -1834,7 +1834,7 @@ def walk_forward_optimization(df: pd.DataFrame, base: SimParams, grid: Dict[str,
     print(f"Average OOS traded: ${avg_traded:,.0f} (max: ${max_traded:,.0f})")
     print(f"Average OOS PnL: ${avg_pnl:.2f}")
     
-  : Activity regime breakdown
+    # Activity regime breakdown
     if 'activity_regime' in valid_results.columns:
         print(f"\n📊 ACTIVITY REGIME BREAKDOWN:")
         regime_counts = valid_results['activity_regime'].value_counts()
@@ -2062,7 +2062,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     
     elif choice == "FULL":
         # === FULL-HISTORY RUN with fixed calibrated params ===
-        # Параметры из последней walk-forward валидации:
+        # Parameters from the most recent walk-forward validation:
         base.half_spread_bps      = 10.0
         base.order_notional_frac  = 0.35
         base.ewma_vol_span        = 25
@@ -2083,7 +2083,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         sim = MarketMakerSim(df, base)
         res = sim.run()
 
-        # === локальный расчёт edge в bps ===
+        # === local edge computation, in bps ===
         if res.traded_usd > 0:
             edge_bps = res.pnl_usd / res.traded_usd * 1e4
         else:

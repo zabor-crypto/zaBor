@@ -87,8 +87,8 @@ All gates must pass before promoting to live.
 ## Quickstart
 
 ```bash
-git clone https://github.com/zabor-crypto/liquidation-signal-research
-cd liquidation-signal-research
+git clone https://github.com/zabor-crypto/zaBor.git
+cd zaBor/scripts/liquidation_signal_research
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 

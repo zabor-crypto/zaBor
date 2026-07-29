@@ -19,21 +19,21 @@ This repo is the full research process: six async collectors, a no-look-ahead ba
 ## Quickstart
 
 ```bash
-git clone https://github.com/zabor-crypto/funding-arb-research.git
-cd funding-arb-research
+git clone https://github.com/zabor-crypto/zaBor.git
+cd zaBor/scripts/funding_arb_research
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 # 1. Collect 90 days of funding history (CEX venues, no API key needed)
-python -m funding_arb.main_collect \
+python main_collect.py \
     --venues binance bybit okx hyperliquid \
     --symbols BTC ETH SOL \
     --start 2025-01-01 --end 2025-04-01
 
 # 2. Run a backtest strategy
-python -m funding_arb.main_backtest --strategy hl_binance_interval
-python -m funding_arb.main_backtest --strategy cross_cex_persistence
-python -m funding_arb.main_backtest --strategy gmx_imbalance_feasibility
+python main_backtest.py --strategy hl_binance_interval
+python main_backtest.py --strategy cross_cex_persistence
+python main_backtest.py --strategy gmx_imbalance_feasibility
 
 # Results appear in outputs/runs/<timestamp>_<strategy>/
 ```
@@ -182,22 +182,22 @@ The live recorder (`src/recorder/`) polls Binance and Bitget mark prices; those 
 
 **Collect:**
 ```bash
-python -m funding_arb.main_collect --venues binance bybit okx hyperliquid \
+python main_collect.py --venues binance bybit okx hyperliquid \
     --symbols BTC ETH SOL --start 2025-01-01 --end 2025-04-01
 
-python -m funding_arb.main_collect --venues gmx_v2 --gmx-snapshot
+python main_collect.py --venues gmx_v2 --gmx-snapshot
 
-python -m funding_arb.main_collect --venues binance --symbols BTC ETH SOL \
+python main_collect.py --venues binance --symbols BTC ETH SOL \
     --depth --depth-limit 100
 ```
 
 **Backtest:**
 ```bash
-python -m funding_arb.main_backtest --strategy hl_binance_interval
-python -m funding_arb.main_backtest --strategy cross_cex_persistence
-python -m funding_arb.main_backtest --strategy cross_cex_residual
-python -m funding_arb.main_backtest --strategy gmx_imbalance_feasibility
-python -m funding_arb.main_backtest --strategy hl_cross_venue_disp
+python main_backtest.py --strategy hl_binance_interval
+python main_backtest.py --strategy cross_cex_persistence
+python main_backtest.py --strategy cross_cex_residual
+python main_backtest.py --strategy gmx_imbalance_feasibility
+python main_backtest.py --strategy hl_cross_venue_disp
 ```
 
 **Event-driven verdict scripts:**

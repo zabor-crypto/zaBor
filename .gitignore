@@ -45,3 +45,6 @@ Thumbs.db
 reports/*.json
 reports/*.log
 reports/*.sqlite*
+
+# Simulator output written into the module directory by a documented run
+scripts/lighter_mm/equity_curve.png
