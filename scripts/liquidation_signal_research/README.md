@@ -128,14 +128,22 @@ pip install -r requirements.txt
 PYTHONPATH=. pytest -q v1/tests
 ```
 
-20 test modules, 55 tests. The reporting/analysis layer (`v1/analysis/`) is not part of this public
-release, so its tests are not shipped either.
+20 test modules, 59 tests, all passing. The reporting/analysis layer (`v1/analysis/`) is not part of
+this public release, so its tests are not shipped either.
 
-One test currently fails on a clean clone —
-`test_shadow_mode_engine.py::test_shadow_mode_blocks_execution_even_when_trade_is_approved`: the
-stubbed aggTrade event is dropped before a decision is produced, so the shadow-mode assertion never
-runs. It is recorded here rather than deleted or skipped, because this module is active research and
-the failure is a real signal about event handling, not a test-harness artifact.
+**Fixed: aggTrade events were being silently dropped.** The shadow-mode safety test
+(`test_shadow_mode_blocks_execution_even_when_trade_is_approved`) failed because no decision was ever
+produced from its aggTrade event. The cause was in the event validator, not the test: Binance names
+the aggregate-trade identifier `a` on the `@aggTrade` stream, while `t` is the per-trade id on the
+`@trade` stream, which this pipeline does not subscribe to. The validator required `t`, so every real
+aggTrade event failed validation, the normalizer returned `None`, and the engine returned before
+reaching a decision — visible only as an increment of `normalized_drop_total`. The normalizer also
+read `trade_id` from `t`, so the id would have been `0` on every trade even had validation passed.
+
+Both now read `a`, with `t` still accepted so captures recorded under the earlier assumption continue
+to replay. Four regression tests in `v1/tests/test_normalizer.py` cover the Binance-shaped payload,
+the legacy payload, a payload with no identifier at all, and the case where the alternative-key rule
+must not weaken the remaining field requirements.
 
 ---
 

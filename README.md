@@ -170,7 +170,7 @@ Only after this offline path works should you configure credentials for any live
 | Module | Tests | Offline | In CI |
 |---|---|---|---|
 | [`scripts/killswitch/`](scripts/killswitch/) | 153 | ✅ | ✅ |
-| [`scripts/liquidation_signal_research/v1/`](scripts/liquidation_signal_research/) | 20 modules, 55 tests (1 failing, documented) | ✅ | ✅ 54 of 55 |
+| [`scripts/liquidation_signal_research/v1/`](scripts/liquidation_signal_research/) | 20 modules, 59 tests | ✅ | ✅ |
 | [`scripts/hl_microstructure_recorder/`](scripts/hl_microstructure_recorder/) | none | — | error-gate only |
 | [`scripts/funding_arb_research/`](scripts/funding_arb_research/) | none | — | error-gate only |
 | other `scripts/` modules | none | — | error-gate only |

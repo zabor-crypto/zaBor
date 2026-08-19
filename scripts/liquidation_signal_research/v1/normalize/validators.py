@@ -23,9 +23,21 @@ class ValidationResult:
 
 REQUIRED_FIELDS = {
     STREAM_FORCE_ORDER: (("o",),),
-    STREAM_AGG_TRADE: (("t",), ("p",), ("q",), ("m",), ("T",)),
+    STREAM_AGG_TRADE: (("p",), ("q",), ("m",), ("T",)),
     STREAM_DEPTH: (("U",), ("u",), ("b",), ("a",)),
     STREAM_MARK_PRICE: (("p",), ("E",)),
+}
+
+# Requirements satisfied by any one of several alternative keys.
+#
+# Binance names the aggregate-trade identifier `a` on the @aggTrade stream; `t`
+# is the per-trade id on the @trade stream, which this pipeline does not consume.
+# Requiring `t` here rejected every real aggTrade event: validation failed, the
+# normalizer returned None, and the engine counted the event under
+# `normalized_drop_total` and returned before producing a decision. Both keys are
+# accepted so that captures recorded under the earlier assumption still replay.
+ANY_OF_FIELDS = {
+    STREAM_AGG_TRADE: (("a", "t"),),
 }
 
 
@@ -51,6 +63,10 @@ def validate_raw_event(event: RawMarketEvent) -> ValidationResult:
                 errors.append(f"missing:{'.'.join(path)}")
                 break
             current = current[key]
+
+    for alternatives in ANY_OF_FIELDS.get(event.stream, ()):
+        if not isinstance(data, dict) or not any(key in data for key in alternatives):
+            errors.append(f"missing_any:{'|'.join(alternatives)}")
 
     if errors:
         return ValidationResult(valid=False, errors=tuple(errors))

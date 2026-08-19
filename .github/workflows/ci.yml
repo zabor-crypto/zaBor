@@ -122,9 +122,7 @@ jobs:
 
   # Second test suite in the repository. Covers the event-sourced pipeline:
   # deterministic replay, executor reconciliation, fault injection, snapshot resync
-  # and rollout gates. One test is deselected by name: it fails on a clean clone and
-  # the failure is documented in the module README rather than hidden — this job
-  # exists to protect the other 54, not to paper over that one.
+  # and rollout gates. The whole suite must pass — no test is excluded.
   liquidation-tests:
     runs-on: ubuntu-latest
     steps:
@@ -154,5 +152,4 @@ jobs:
       - name: Run pipeline tests
         working-directory: scripts/liquidation_signal_research
         run: |
-          PYTHONPATH=. python -m pytest v1/tests -q \
-            -k "not test_shadow_mode_blocks_execution_even_when_trade_is_approved"
+          PYTHONPATH=. python -m pytest v1/tests -q
