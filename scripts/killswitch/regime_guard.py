@@ -24,8 +24,11 @@ Refinements:
   - uptrend gate: skip the momentum layers (L2/L3) when BTC 24h return > up_gate (don't flush into a rally).
   - flush gate: skip L2 during an acute BTC flush (6h return <= -flush_block6) to avoid cutting at V-bounce lows.
   - L1 is NEVER gated — a position past its hard-stop is broken in any regime.
-Backtested on the live account (2026-05-06..06-10): MDD -50.7% -> ~-28%, +~$600 on a ~$1.5k book,
-benign in up-regime, near-neutral in sharp-down. See analysis/REPORT.md.
+Validated by counterfactual replay of one real account's own 60-second history (2026-05-06..06-10):
+reconstructed worst-case drawdown approximately -50.7% -> approximately -26%, benign in up-regime,
+near-neutral in sharp-down. This is a reconstructed/counterfactual result, not realised live
+performance, and it is not reproducible from this repository: the underlying account history is not
+published.
 """
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple, Dict, Any
@@ -46,8 +49,9 @@ class RegimeGuardConfig:
     # ONE position may cost the WHOLE account (concentration/ruin protection = the kill-switch's job, not
     # the bot's). Regime-agnostic, highest priority. Catches an idiosyncratic blow-up (e.g. a coin pumped
     # by MMs against a short) that the portfolio/regime triggers (L2/L3/L4) miss because it's 1-2 names.
-    # In account history it would fire ~1/180 positions (only the H short at -16% of equity) -> cuts it to
-    # the cap, never touches normal trades, and acts every 60s vs a bot's slow daily-close stop.
+    # In the replayed account history it fires on roughly 1 position in 180 (a single outlier short well
+    # past the cap) -> cuts that one to the cap, never touches normal trades, and acts every 60s vs a
+    # bot's slow daily-close stop.
     l0_enabled: bool = True
     max_loss_pct_equity: float = 0.08   # close any single position whose open loss exceeds 8% of equity
     # L1 per-position blanket MARGIN stop — OFF by default (overrides each bot's own optimised exit).
@@ -87,8 +91,8 @@ class RegimeGuardConfig:
                                     # CONFIRMED adverse macro; avoids flushing dips inside a slow bull).
                                     # L4 (daily hard loss) is NEVER trend-gated. Validated on the
                                     # reconstructed Apr->Jun window incl. the +8% mid-Apr->mid-May BTC
-                                    # uptrend: cut uptrend false-cut damage -$217 -> -$41, downtrend
-                                    # protection unchanged (+631 vs +635). Set None to disable.
+                                    # uptrend: cut uptrend false-cuts by roughly 80% at near-zero
+                                    # downtrend cost (shadow testing). Set None to disable.
     flush_block6: float = 0.03      # skip L2 if BTC 6h return <= -3%
     source_threshold: float = 0.55  # dominant side must own >= this share of open loss
 

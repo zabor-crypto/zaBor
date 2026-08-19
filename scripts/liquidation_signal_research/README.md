@@ -124,8 +124,18 @@ PYTHONPATH=. python3 -m v1.app.paper_runner \
 ### Run tests
 
 ```bash
+pip install -r requirements.txt
 PYTHONPATH=. pytest -q v1/tests
 ```
+
+20 test modules, 55 tests. The reporting/analysis layer (`v1/analysis/`) is not part of this public
+release, so its tests are not shipped either.
+
+One test currently fails on a clean clone —
+`test_shadow_mode_engine.py::test_shadow_mode_blocks_execution_even_when_trade_is_approved`: the
+stubbed aggTrade event is dropped before a decision is produced, so the shadow-mode assertion never
+runs. It is recorded here rather than deleted or skipped, because this module is active research and
+the failure is a real signal about event handling, not a test-harness artifact.
 
 ---
 

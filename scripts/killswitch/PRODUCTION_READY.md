@@ -9,7 +9,7 @@
 
 ## v7.0 — Regime Guard rollout checklist (in addition to the stage checklist below)
 
-1. `python3 -m pytest tests/ -v` — incl. `test_regime_guard.py` + `test_guardrails.py` (130+ tests).
+1. `python3 -m pytest tests/ -v` — incl. `test_regime_guard.py` + `test_guardrails.py` (153 tests).
 2. Add the `regime_guard:` block to your futures account config with **`log_only: true`**.
 3. Run the kill-switch; confirm `[REGIME_GUARD] [LOG-ONLY] …` lines appear each cycle with no errors,
    and that the macro fetch (`btc7d=…`) is populated.
@@ -37,7 +37,7 @@ Expected: all assertions pass with no errors.
 python3 -m pytest tests/ -v
 ```
 
-Expected: 94+ tests pass. The script is **not ready for live use** until all tests pass in your environment.
+Expected: 153 tests pass. The script is **not ready for live use** until all tests pass in your environment.
 
 ### 3. Run dry-run smoke test
 
@@ -78,7 +78,7 @@ python3 killswitch.py --config config.yaml
 
 ---
 
-## Test Coverage (v7.0 — 130+ tests)
+## Test Coverage (v7.0 — 153 tests)
 
 | Suite | Notes |
 |-------|-------|

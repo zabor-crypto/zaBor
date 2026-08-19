@@ -66,7 +66,7 @@ If the process just started (no historical snapshots in SQLite), the reference i
 
 ## Test Suite
 
-As of v7.0 the full suite is green: **`python3 -m pytest tests/ -v` → 130+ passed, 0 failed**
+As of v7.0 the full suite is green: **`python3 -m pytest tests/ -v` → 153 passed, 0 failed**
 (including `test_extended.py`, `test_regime_guard.py`, and `test_guardrails.py`). Verify all pass in
 your own environment before trusting results.
 

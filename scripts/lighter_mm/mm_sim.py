@@ -68,7 +68,6 @@ except ImportError:
 
 
 # === PATCH A: imports & globals ===
-import math  # added by patch
 # module-level worker globals for chunked parallel optimizer
 _DF_GLOBAL = None
 _BASE_GLOBAL = None
