@@ -167,17 +167,32 @@ Only after this offline path works should you configure credentials for any live
 
 ## Tests and CI
 
-| Module | Tests | Offline |
-|---|---:|---|
-| [`scripts/killswitch/`](scripts/killswitch/) | 153 | ✅ |
-| [`scripts/liquidation_signal_research/v1/`](scripts/liquidation_signal_research/) | 23 test modules | ✅ |
+| Module | Tests | Offline | In CI |
+|---|---|---|---|
+| [`scripts/killswitch/`](scripts/killswitch/) | 153 | ✅ | ✅ |
+| [`scripts/liquidation_signal_research/v1/`](scripts/liquidation_signal_research/) | 20 modules, 59 tests | ✅ | ✅ |
+| [`scripts/hl_microstructure_recorder/`](scripts/hl_microstructure_recorder/) | none | — | error-gate only |
+| [`scripts/funding_arb_research/`](scripts/funding_arb_research/) | none | — | error-gate only |
+| other `scripts/` modules | none | — | error-gate only |
 
-CI runs three jobs on every push: `lint` (ruff + mypy on the shared root), `install` (clean venv,
-installs via the documented command, imports the public package), and `tests` (runs the Kill-Switch
-suite and fails if fewer than 130 tests are collected).
+CI runs five jobs on every push:
 
-Modules under `scripts/` carry their own dependencies and are checked per-module rather than in shared
-CI. See [CONTRIBUTING.md](CONTRIBUTING.md).
+| Job | What it actually checks |
+|---|---|
+| `lint` | ruff + mypy on the shared root **only** (`exchanges/`, `tests/` — 2 source files under mypy) |
+| `install` | clean venv, install via the documented command, import the public package |
+| `tests` | Kill-Switch suite; fails if fewer than 130 tests are collected |
+| `scripts-errors` | error-only ruff across **all** of `scripts/` (undefined names, unreachable bindings, syntax errors, invalid comparisons) |
+| `liquidation-tests` | event-sourced pipeline suite — replay, reconciliation, fault injection, snapshot resync, rollout gates |
+
+**What CI does not check.** Style and typing are not enforced across `scripts/`: those modules do not
+pass the repository's full ruff profile, and enforcing it would be a large unrelated reformat. The
+`scripts-errors` job is a correctness gate, not a style gate. Two of the three flagship modules ship
+no test suite at all — the recorder is I/O against a live venue and the funding stack is a research
+pipeline whose verdict tables are its output. Read the badge as "the two suites that exist pass, and
+nothing in `scripts/` has a genuine runtime error", not as full coverage.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

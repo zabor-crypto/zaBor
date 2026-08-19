@@ -86,3 +86,39 @@ def test_ws_client_extract_symbol_from_force_order_arr() -> None:
 
 def test_ws_client_normalize_stream_name_force_order_arr() -> None:
     assert BinanceWsClient._normalize_stream_name("!forceOrder@arr") == STREAM_FORCE_ORDER
+
+
+# --- regression: aggTrade identifier field -----------------------------------
+#
+# Binance sends `a` (aggregate trade id) on @aggTrade; `t` belongs to the
+# @trade stream, which this pipeline does not subscribe to. The validator used
+# to require `t`, so every real aggTrade event failed validation and was dropped
+# before any decision was produced -- visible only as `normalized_drop_total`.
+
+
+def test_agg_trade_with_binance_identifier_is_accepted() -> None:
+    """A Binance-shaped aggTrade payload must normalize, not drop."""
+    event = _raw(STREAM_AGG_TRADE, {"a": 77, "p": "100", "q": "1", "m": False, "T": 2000})
+    normalized = EventNormalizer().normalize(event)
+    assert normalized is not None
+    assert normalized.trade_id == 77
+
+
+def test_agg_trade_with_legacy_identifier_still_accepted() -> None:
+    """Captures recorded under the earlier `t` assumption must still replay."""
+    event = _raw(STREAM_AGG_TRADE, {"t": 42, "p": "100", "q": "1", "m": False, "T": 2000})
+    normalized = EventNormalizer().normalize(event)
+    assert normalized is not None
+    assert normalized.trade_id == 42
+
+
+def test_agg_trade_without_any_identifier_is_rejected() -> None:
+    """Dropping the identifier entirely is still a validation failure."""
+    event = _raw(STREAM_AGG_TRADE, {"p": "100", "q": "1", "m": False, "T": 2000})
+    assert EventNormalizer().normalize(event) is None
+
+
+def test_agg_trade_missing_price_is_still_rejected() -> None:
+    """The alternative-key rule must not weaken the other requirements."""
+    event = _raw(STREAM_AGG_TRADE, {"a": 1, "q": "1", "m": False, "T": 2000})
+    assert EventNormalizer().normalize(event) is None

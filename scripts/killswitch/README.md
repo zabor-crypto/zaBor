@@ -46,7 +46,7 @@ Three design choices distinguish it:
 - **Side-aware macro gate** — L2/L3 fire only when BTC macro is confirmed against the side (longs when BTC 7d < 0, shorts when BTC 7d > 0), so the guard doesn't flush recoverable dips inside a slow trend. L4 is always-on.
 - **Symmetric** — longs and shorts handled identically.
 
-Validated by counterfactual replay of a real account's own 60-second history: max drawdown roughly halved, positive/neutral across uptrend / chop / downtrend.
+Validated by counterfactual replay of a real account's own 60-second history: reconstructed worst-case drawdown approximately -50.7% → approximately -26%, positive/neutral across uptrend / chop / downtrend. Reconstructed/counterfactual result, not realised live performance; the underlying account history is not published, so this figure is not reproducible from this repository.
 
 **Rollout guardrails:** `log_only` (compute + log/Telegram "WOULD close X", execute nothing), `reentry_cooldown_min` (stop guard↔bot churn), `max_closes_per_day` (runaway backstop). Fully additive — if `regime_guard` is absent from the config, behaviour is identical to v6.0.
 
@@ -147,7 +147,7 @@ cat killswitch_trading_lock.json
 python3 -m pytest tests/ -v
 ```
 
-130+ tests across 7 suites. The system is **not ready for live use** until all tests pass in your environment.
+153 tests across 7 suites. The system is **not ready for live use** until all tests pass in your environment.
 
 | Suite | Coverage |
 |-------|---------|
@@ -177,7 +177,7 @@ config.yaml                # Full multi-exchange config (dry_run: true by defaul
 config_bitget_futures_only.yaml   # Single-exchange example with regime_guard + Telegram
 config_stage_based_example.yaml   # Annotated multi-exchange template
 requirements.txt
-tests/                     # 130+ tests
+tests/                     # 153 tests
 tools/                     # dryrun_smoke.py, e2e_demo_runner.py
 ```
 
@@ -185,10 +185,15 @@ tools/                     # dryrun_smoke.py, e2e_demo_runner.py
 
 ## What is NOT in this public version
 
-This is the complete production codebase. Nothing has been removed from the risk management logic. The only differences from a private deployment are:
+The risk-management logic is published in full — no stage, layer or guardrail has been removed. The differences from a private deployment are:
 
-- No actual API keys (you supply your own via `.env`)
+- No API keys (you supply your own via `.env`)
 - Example spot blacklists use generic tokens; replace with your own
+- No account history, position records, runtime state or performance records
+
+Publishing the logic in full is not the same as an operational track record. This code is tested
+offline and designed to fail closed; nothing in this repository demonstrates proven production
+operation.
 
 ---
 

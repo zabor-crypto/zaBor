@@ -74,7 +74,7 @@ class EventNormalizer:
             symbol=raw.symbol,
             exchange_ts_ms=raw.exchange_ts_ms,
             recv_mono_ts_ns=raw.recv_mono_ts_ns,
-            trade_id=int(data.get("t", 0)),
+            trade_id=int(data.get("a", data.get("t", 0))),
             price=Decimal(str(data.get("p", "0"))),
             qty=Decimal(str(data.get("q", "0"))),
             maker_side=maker_side,
