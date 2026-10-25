@@ -175,22 +175,25 @@ Only after this offline path works should you configure credentials for any live
 | [`scripts/funding_arb_research/`](scripts/funding_arb_research/) | none | — | error-gate only |
 | other `scripts/` modules | none | — | error-gate only |
 
-CI runs five jobs on every push:
+CI runs six jobs on every push:
 
 | Job | What it actually checks |
 |---|---|
-| `lint` | ruff + mypy on the shared root **only** (`exchanges/`, `tests/` — 2 source files under mypy) |
+| `lint` | ruff + mypy on the shared root **only** (`exchanges/`, `tests/`) |
 | `install` | clean venv, install via the documented command, import the public package |
 | `tests` | Kill-Switch suite; fails if fewer than 130 tests are collected |
 | `scripts-errors` | error-only ruff across **all** of `scripts/` (undefined names, unreachable bindings, syntax errors, invalid comparisons) |
+| `maintenance-tests` | offline command-planning and dependency-argument regressions; no deployment is executed |
 | `liquidation-tests` | event-sourced pipeline suite — replay, reconciliation, fault injection, snapshot resync, rollout gates |
 
 **What CI does not check.** Style and typing are not enforced across `scripts/`: those modules do not
 pass the repository's full ruff profile, and enforcing it would be a large unrelated reformat. The
-`scripts-errors` job is a correctness gate, not a style gate. Two of the three flagship modules ship
-no test suite at all — the recorder is I/O against a live venue and the funding stack is a research
-pipeline whose verdict tables are its output. Read the badge as "the two suites that exist pass, and
-nothing in `scripts/` has a genuine runtime error", not as full coverage.
+`scripts-errors` job checks selected static error patterns. Two of the three flagship modules have
+no core test suite — the recorder is I/O against a live venue and the funding stack is a research
+pipeline whose verdict tables are its output. The maintenance tests cover the deployment command
+planner, not funding accounting. A successful badge covers the two documented runtime suites,
+command-planning regressions and selected static checks; it does not establish runtime correctness
+of every script or full coverage.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
