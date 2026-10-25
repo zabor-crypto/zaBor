@@ -171,11 +171,11 @@ Only after this offline path works should you configure credentials for any live
 |---|---|---|---|
 | [`scripts/killswitch/`](scripts/killswitch/) | 153 | ✅ | ✅ |
 | [`scripts/liquidation_signal_research/v1/`](scripts/liquidation_signal_research/) | 20 modules, 59 tests | ✅ | ✅ |
-| [`scripts/hl_microstructure_recorder/`](scripts/hl_microstructure_recorder/) | none | — | error-gate only |
-| [`scripts/funding_arb_research/`](scripts/funding_arb_research/) | none | — | error-gate only |
+| [`scripts/hl_microstructure_recorder/`](scripts/hl_microstructure_recorder/) | 6 synthetic recorder contracts | ✅ | ✅ |
+| [`scripts/funding_arb_research/`](scripts/funding_arb_research/) | 16 synthetic accounting and client contracts | ✅ | ✅ |
 | other `scripts/` modules | none | — | error-gate only |
 
-CI runs six jobs on pushes to `main` and pull requests:
+CI runs eight jobs on pushes to `main` and pull requests:
 
 | Job | What it actually checks |
 |---|---|
@@ -185,15 +185,17 @@ CI runs six jobs on pushes to `main` and pull requests:
 | `scripts-errors` | error-only ruff across **all** of `scripts/` (undefined names, unreachable bindings, syntax errors, invalid comparisons) |
 | `maintenance-tests` | offline command-planning and dependency-argument regressions; no deployment is executed |
 | `liquidation-tests` | event-sourced pipeline suite — replay, reconciliation, fault injection, snapshot resync, rollout gates |
+| `recorder-fixtures` | six synthetic contracts for dispatch, reconnect, health flush, append/rotation and readers; no venue connection |
+| `funding-fixtures` | synthetic settlement, cost and client-interface contracts; no strategy execution or live connection |
 
 **What CI does not check.** Style and typing are not enforced across `scripts/`: those modules do not
 pass the repository's full ruff profile, and enforcing it would be a large unrelated reformat. The
-`scripts-errors` job checks selected static error patterns. Two of the three flagship modules have
-no core test suite — the recorder is I/O against a live venue and the funding stack is a research
-pipeline whose verdict tables are its output. The maintenance tests cover the deployment command
-planner, not funding accounting. A successful badge covers the two documented runtime suites,
-command-planning regressions and selected static checks; it does not establish runtime correctness
-of every script or full coverage.
+`scripts-errors` job checks selected static error patterns. Recorder fixtures exercise fake WebSocket
+input and temporary gzip files; funding fixtures exercise fictional settlements, costs and the client
+interface. They cover bounded software contracts. They do not establish venue availability, complete
+point-in-time correctness, quote freshness, economic validity or production readiness. Maintenance
+tests cover the deployment command planner. A successful badge covers the documented suites and
+selected static checks; it does not establish runtime correctness of every script or full coverage.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 

@@ -24,15 +24,18 @@ From the repository root, in a Python 3.10+ environment with `pandas` and `PyYAM
 installed (both are also root-package dependencies):
 
 ```bash
+python -m pip install -c scripts/funding_arb_research/requirements.txt aiohttp orjson numpy pandas pyyaml
 python -B -m unittest discover \
-  -s scripts/funding_arb_research/tests -p 'test_offline_accounting.py' -v
+  -s scripts/funding_arb_research/tests -p 'test_offline_*.py' -v
 ```
 
-These twelve tests call the existing settlement, prediction-selection, normalization
-and cost functions directly. No collector, strategy, recorder, backtest, venue
-configuration or live endpoint is used. The small JSON fixture contains hand-authored
+The suite contains twelve accounting tests and four client-interface tests. The
+accounting tests call the existing settlement, prediction-selection, normalization
+and cost functions directly. Client tests import the existing venue-client base,
+replace sessions with fakes, and exercise subscription, dispatch, malformed frames
+and ping-task cleanup. No socket, strategy, backtest or venue configuration is used. The small JSON fixture contains hand-authored
 fictional rates and fees, not observations or calibrated parameters, under the module's
-MIT [license](LICENSE).
+MIT [license](../../LICENSE).
 
 The accounting contracts checked are settlement in **`(start, end]`** (no duplicate
 booking across adjacent windows), opposite long/short signs, notional scaling,
@@ -303,4 +306,4 @@ Research simulator only. Results do not reflect live trading performance. The st
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](../../LICENSE).
