@@ -9,7 +9,7 @@ import sys
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import aiohttp
 
@@ -143,8 +143,19 @@ class ClientInterfaceTests(unittest.IsolatedAsyncioTestCase):
         tasks = []
         create_task = asyncio.create_task
 
+        class TrackedTask:
+            def __init__(self, task):
+                self.task = task
+                self.cancel = Mock(wraps=task.cancel)
+
+            def __await__(self):
+                return self.task.__await__()
+
+            def done(self):
+                return self.task.done()
+
         def tracked_task(*args, **kwargs):
-            task = create_task(*args, **kwargs)
+            task = TrackedTask(create_task(*args, **kwargs))
             tasks.append(task)
             return task
 
@@ -153,7 +164,7 @@ class ClientInterfaceTests(unittest.IsolatedAsyncioTestCase):
                 await client._run_once()
         self.assertEqual(len(tasks), 1)
         self.assertTrue(tasks[0].done())
-        self.assertGreater(tasks[0].cancelling(), 0)
+        tasks[0].cancel.assert_called_once_with()
         # The read failure arrives before the first scheduled ping.
         self.assertEqual(socket.text_sent, [])
         self.assertTrue(socket.exited)
