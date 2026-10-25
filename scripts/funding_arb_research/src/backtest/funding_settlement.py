@@ -32,7 +32,7 @@ def funding_pnl(
     start: pd.Timestamp,
     end: pd.Timestamp,
 ) -> list[FundingPnL]:
-    """Book a funding pnl entry for every settlement timestamp in [start, end].
+    """Book a funding pnl entry for every settlement timestamp in (start, end].
 
     ``funding_df`` must already be filtered to the relevant venue+symbol; we
     keep the venue/symbol args explicit so the output is self-describing.

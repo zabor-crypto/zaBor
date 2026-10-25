@@ -89,7 +89,7 @@ class CostModel:
     ) -> float:
         """Conservative slippage estimate.
 
-        slippage_bps = max(min, k * sqrt(order / depth)) * 1e4
+        slippage_bps = max(min_slippage_bps, k * sqrt(order / depth) * 1e4)
         Where k is a unitless constant. Yields bps, not fraction.
         """
         if depth_notional is None or depth_notional <= 0 or order_notional <= 0:

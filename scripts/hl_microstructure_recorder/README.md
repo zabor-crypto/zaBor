@@ -58,6 +58,35 @@ Four analysis tools, all reading the recorded corpus, all built on one **empiric
 
 ## Quickstart
 
+### Offline synthetic checks
+
+From the repository root, with Python 3.10 or newer:
+
+```bash
+python -B -m unittest discover \
+  -s scripts/hl_microstructure_recorder/tests -p 'test_offline_recorder.py' -v
+```
+
+These six tests use the standard library only. They replace the websocket adapter
+with an in-memory fixture and write gzip/health files only in temporary directories;
+they do not start a live capture. The small JSON fixture is hand-authored, fictional,
+contains no real wallets or captured market data, and is covered by the repository's
+MIT [license](../../LICENSE).
+
+The tests exercise the existing message dispatch and health counts, preservation of
+receive timestamps across a gap, reconnect backoff and resubscription, hourly
+rotation/restart append, flush visibility, and recovery of complete JSON lines from
+a truncated gzip file. They also characterize the as-of quote lookup: it selects
+no future quote but currently has **no maximum quote-age limit**.
+
+This does not verify the live websocket API/library, watchdog alerts, recovery of
+messages missed during a disconnect, a staleness-quality gate, or the numerical
+toxicity analysis. A passing test suite does not establish executable maker returns.
+
+### Live public-data capture
+
+From this module's directory:
+
 ```bash
 pip install -r requirements.txt          # just `websockets`
 
@@ -117,4 +146,4 @@ Descriptive research tooling. All numbers shown are **single-day, in-sample snap
 
 ## License
 
-Apache 2.0 — see the repository root [LICENSE](../../LICENSE).
+MIT — see the repository root [LICENSE](../../LICENSE).

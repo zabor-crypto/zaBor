@@ -164,3 +164,47 @@ jobs:
         working-directory: scripts/liquidation_signal_research
         run: |
           PYTHONPATH=. python -m pytest v1/tests -q
+
+
+  recorder-fixtures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Synthetic recorder contracts with no venue connection
+        run: |
+          python -B - <<'PYTEST'
+          import sys, unittest
+          suite = unittest.defaultTestLoader.discover("scripts/hl_microstructure_recorder/tests", pattern="test_offline_*.py")
+          count = suite.countTestCases()
+          print(f"collected recorder fixtures: {count}")
+          if count < 6:
+              raise SystemExit("Expected at least six recorder fixture tests")
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          sys.exit(0 if result.wasSuccessful() else 1)
+          PYTEST
+
+  funding-fixtures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install bounded test dependencies under module constraints
+        run: |
+          python -m pip install -c scripts/funding_arb_research/requirements.txt aiohttp orjson numpy pandas pyyaml
+      - name: Synthetic accounting and client interface contracts
+        run: |
+          python -B - <<'PYTEST'
+          import sys, unittest
+          suite = unittest.defaultTestLoader.discover("scripts/funding_arb_research/tests", pattern="test_offline_*.py")
+          count = suite.countTestCases()
+          print(f"collected funding fixtures: {count}")
+          if count < 16:
+              raise SystemExit("Expected at least sixteen accounting and client fixture tests")
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          sys.exit(0 if result.wasSuccessful() else 1)
+          PYTEST
