@@ -1,0 +1,23 @@
+{
+  "provenance": "Hand-authored fictional messages; no captured market data or real wallet addresses. MIT, see repository LICENSE.",
+  "start_ms": 1704067200000,
+  "coin": "SYNTH/USD",
+  "events": [
+    {
+      "recv_ms": 1704067200100,
+      "frame": {"channel": "bbo", "data": {"coin": "SYNTH/USD", "time": 1704067200000, "bbo": [{"px": "99", "sz": "1"}, {"px": "101", "sz": "2"}]}}
+    },
+    {
+      "recv_ms": 1704067321000,
+      "frame": {"channel": "bbo", "data": {"coin": "SYNTH/USD", "time": 1704067320000, "bbo": [{"px": "100", "sz": "2"}, {"px": "102", "sz": "1"}]}}
+    },
+    {
+      "recv_ms": 1704067321100,
+      "frame": {"channel": "trades", "data": [{"coin": "SYNTH/USD", "side": "B", "px": "102", "sz": "3", "time": 1704067320000, "users": ["synthetic-buyer", "synthetic-seller"]}]}
+    },
+    {
+      "recv_ms": 1704067321200,
+      "frame": {"channel": "l2Book", "data": {"coin": "SYNTH/USD", "time": 1704067320000, "levels": [[{"px": "100", "sz": "2", "n": 1}], [{"px": "102", "sz": "1", "n": 1}]]}}
+    }
+  ]
+}

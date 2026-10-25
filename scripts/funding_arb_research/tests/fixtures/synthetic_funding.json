@@ -1,0 +1,14 @@
+{
+  "provenance": "Hand-authored fictional rates and fees; no venue observations or calibrated parameters. MIT, see module LICENSE.",
+  "rows": [
+    {"timestamp_utc": "2030-01-01T00:00:00Z", "funding_rate": 0.001, "predicted_funding_rate": 0.003},
+    {"timestamp_utc": "2030-01-01T08:00:00Z", "funding_rate": -0.002, "predicted_funding_rate": null},
+    {"timestamp_utc": "2030-01-01T16:00:00Z", "funding_rate": 0.0005, "predicted_funding_rate": 0.004},
+    {"timestamp_utc": "2030-01-02T00:00:00Z", "funding_rate": 0.0001, "predicted_funding_rate": 0.005}
+  ],
+  "fees": {
+    "synthetic_a": {"maker_bps": -1.0, "taker_bps": 3.0},
+    "synthetic_b": {"maker_bps": 2.0, "taker_bps": 5.0}
+  },
+  "slippage": {"min_slippage_bps": 2.0, "k": 0.01, "fallback_bps": 7.0}
+}
