@@ -54,8 +54,9 @@ filename exclusions are not a complete secret scan.
 
 There is no `rsync --delete`: extra remote files and excluded state are preserved.
 This also means retired code can remain remotely; inventory and authorize any cleanup
-as a separate operation. The script does not change existing ownership during ordinary
-sync/restart, suppress preparation errors, or silently acquire permissions.
+as a separate operation. Archive-mode rsync may change remote metadata, including
+ownership where the SSH user's privileges permit it. The script does not suppress
+preparation errors or silently acquire permissions.
 
 ## Disk
 

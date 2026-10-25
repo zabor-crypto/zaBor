@@ -175,7 +175,7 @@ Only after this offline path works should you configure credentials for any live
 | [`scripts/funding_arb_research/`](scripts/funding_arb_research/) | none | — | error-gate only |
 | other `scripts/` modules | none | — | error-gate only |
 
-CI runs six jobs on every push:
+CI runs six jobs on pushes to `main` and pull requests:
 
 | Job | What it actually checks |
 |---|---|
