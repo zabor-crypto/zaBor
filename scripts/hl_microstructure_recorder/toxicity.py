@@ -20,12 +20,16 @@ EMPIRICALLY VERIFIED SEMANTICS (PURR/USDC, 2026-07-04):
   * Aggression-side markout depends ONLY on side+price (both verified) and is
     independent of the users ordering; wallet attribution uses the rule above.
 
-METRICS (size-weighted, per coin):
-  taker_markout(dt)  = s * (mid(t+dt) - fill_px) / fill_px            [>0 = informed taker = bad for maker]
-  half_spread        = (ask - bid) / 2 / mid at trade time            [what the maker earns upfront]
-  maker_gross(dt)    = half_spread - taker_markout                    [maker edge before fees]
-  maker_net(dt)      = maker_gross - maker_fee                        [THE G1 number]
+METRICS (basis points, size-weighted, per coin):
+  taker_markout(dt)  = s * (mid(t+dt) - fill_px) / fill_px * 1e4       [>0 = adverse for maker]
+  half_spread        = (ask - bid) / 2 / mid * 1e4 at trade time       [diagnostic spread snapshot]
+  maker_gross(dt)    = -taker_markout                                [fill-relative maker markout]
+  maker_net(dt)      = maker_gross - maker_fee                       [maker markout after fee]
   non_toxic_share    = taker-volume fraction with maker_net(dt) >= 0  [G1 pass wants a real, profitable segment]
+
+The fill-relative markout already embeds the executed spread; half_spread is
+reported separately and is not added to maker_gross. These are tape-based
+measurements, not a simulation of executable quote placement or queue fills.
 
 Horizons: +60s and +300s. Fees: spot maker 4bps, perp maker 1.5bps (fees.json).
 Tolerates truncated live gz (EOFError). No orders, no capital.

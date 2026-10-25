@@ -15,7 +15,7 @@ No trading. No API keys. No strategy. Just the data an MM needs and the tools to
 ## Why this is worth your attention
 
 - **Wallet-level adverse selection.** Because HL prints `users = [buyer, seller]` on every trade, `toxicity.py` attributes each fill to a real taker address and ranks the wallets imposing the most adverse selection on makers. That is the difference between "spreads look tight" and "spreads look tight *but a handful of wallets eat every fill.*"
-- **The maker's real question, answered from the tape:** `maker_net = half_spread − taker_markout − fee`. Positive means a maker profits against that flow net of fees. The toolkit reports it per coin, per horizon (60s / 300s), and per wallet.
+- **The maker's real question, answered from the tape:** `maker_net = -taker_markout - maker_fee`, in basis points. Here taker markout is measured from the fill price to the future midpoint, so the executed spread is already embedded; the separately reported half-spread is a diagnostic and is not added again. The toolkit reports the result per coin, per horizon (60s / 300s), and per wallet. These tape-based measurements do not establish the returns of an executable quoting strategy.
 - **It captures what others drop.** Funding, OI, and full L20 depth alongside trades — the signals that are invisible in a trades-only feed but define whether a book is maker-friendly.
 - **Deployment discipline built in.** Hourly-rotated gzip JSONL, `recv_ts_ms` on every record for latency/gap analysis, a self-writing `health.json`, an independent capture watchdog, and an activity-driven universe manager (because on HL spot, reported volume is a *trap* — see below).
 
@@ -105,7 +105,7 @@ This is the **data-capture and measurement** layer only. Deliberately excluded:
 - The fill-model simulator and its calibration.
 - Any live execution, position, or account code.
 
-The recorder has no knowledge of a strategy; the toxicity tools are **descriptive microstructure analysis**. Publishing them exposes no alpha — they measure the *market*, not a way to trade it.
+The recorder has no knowledge of a strategy; the toxicity tools are **descriptive microstructure analysis**. This release's disclosure scope is the published capture and measurement code. Whether a future change reveals a proprietary signal, selection rule or calibration requires a separate review; descriptive tooling is not, by itself, a guarantee that publication discloses no competitive information.
 
 ---
 
